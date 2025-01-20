@@ -11,27 +11,24 @@ st.write("输入 Bilibili 视频 URL，下载并合并视频和音频到本地�
 # **状态管理**
 if "url" not in st.session_state:
     st.session_state.url = ""
-if "reset_triggered" not in st.session_state:
-    st.session_state.reset_triggered = False
-if "start_processing" not in st.session_state:
-    st.session_state.start_processing = False
+if "is_parsing" not in st.session_state:
+    st.session_state.is_parsing = False
+if "is_downloaded" not in st.session_state:
+    st.session_state.is_downloaded = False
 
 # 重置状态函数
 def reset_state():
-    st.session_state.url = ""  # 清空 URL
-    st.session_state.reset_triggered = True
-    st.session_state.start_processing = False
+    st.session_state.url = ""
+    st.session_state.is_parsing = False
+    st.session_state.is_downloaded = False
 
-# 解析函数
+# 开始解析函数
 def start_parsing():
-    st.session_state.start_processing = True
+    st.session_state.is_parsing = True
+    st.session_state.is_downloaded = False  # 重置下载状态
 
 # 输入框和按钮
-url = st.text_input(
-    "请输入 Bilibili 视频的网址:",
-    value=st.session_state.url,  # 确保输入框与 session_state.url 同步
-    key="url_input"
-)
+url = st.text_input("请输入 Bilibili 视频的网址:", value=st.session_state.url, key="url_input")
 col1, col2 = st.columns(2)
 with col1:
     if st.button("解析"):
@@ -42,17 +39,13 @@ with col2:
         reset_state()
 
 def extract_bv(url):
-    """
-    从给定的 URL 中提取 Bilibili 的 BV 号。
-    """
+    """从给定的 URL 中提取 Bilibili 的 BV 号。"""
     bv_pattern = r"BV[0-9A-Za-z]+"
     match = re.search(bv_pattern, url)
     return match.group(0) if match else None
 
 def find_api_inf(url, bvid, headers):
-    """
-    从 Bilibili 页面中提取 aid 和 cid 信息。
-    """
+    """从 Bilibili 页面中提取 aid 和 cid 信息。"""
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         html_content = response.text
@@ -66,9 +59,7 @@ def find_api_inf(url, bvid, headers):
     return None, None
 
 def download_file(url, filename):
-    """
-    下载文件的通用函数。
-    """
+    """下载文件的通用函数。"""
     try:
         response = requests.get(url, stream=True)
         response.raise_for_status()
@@ -76,36 +67,27 @@ def download_file(url, filename):
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
         return True
-    except requests.exceptions.HTTPError as http_err:
-        print(f"下载失败：无法下载文件。可能是权限问题或资源限制。")
     except Exception as e:
-        print(f"下载失败：发生未知错误。")
+        print(f"下载失败: {e}")
     return False
 
 # **解析和下载逻辑**
-if st.session_state.start_processing and url:
-    st.write("解析中，请稍候...")
+if st.session_state.is_parsing and not st.session_state.is_downloaded and st.session_state.url:
+    st.write("正在解析，请稍候...")
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
     }
 
     # 提取 BV 号
-    bvid = extract_bv(url)
+    bvid = extract_bv(st.session_state.url)
     if bvid:
         st.success(f"提取到的 BV 号: {bvid}")
 
         # 获取 aid 和 cid
-        aid, cid = find_api_inf(url, bvid, headers)
+        aid, cid = find_api_inf(st.session_state.url, bvid, headers)
         if aid and cid:
             # 请求视频和音频下载地址
-            params = {
-                "fnver": "0",
-                "fnval": "4048",
-                "fourk": "1",
-                "aid": aid,
-                "bvid": bvid,
-                "cid": cid,
-            }
+            params = {"fnver": "0", "fnval": "4048", "fourk": "1", "aid": aid, "bvid": bvid, "cid": cid}
             response = requests.get("https://api.bilibili.com/x/player/playurl", params=params, headers=headers)
 
             if response.status_code == 200:
@@ -125,7 +107,6 @@ if st.session_state.start_processing and url:
                         video_downloaded = True
                         st.success("视频文件下载成功。")
                         break
-                    
                 if not video_downloaded:
                     st.error("视频文件下载失败。")
 
@@ -135,7 +116,6 @@ if st.session_state.start_processing and url:
                         audio_downloaded = True
                         st.success("音频文件下载成功。")
                         break
-                    
                 if not audio_downloaded:
                     st.error("音频文件下载失败。")
 
@@ -150,7 +130,8 @@ if st.session_state.start_processing and url:
                         video.write_videofile(output_file, codec="libx264", audio_codec="aac")
                         st.success(f"合并完成: {output_file}")
                         with open(output_file, "rb") as f:
-                            st.download_button("下载合并后的视频", f, file_name="output.mp4")
+                            st.download_button("下载视频", f, file_name=output_file)
+                        st.session_state.is_downloaded = True
                     except Exception as e:
                         st.error(f"合并失败: {e}")
                     finally:
