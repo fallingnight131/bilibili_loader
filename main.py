@@ -4,7 +4,7 @@ from moviepy.editor import VideoFileClip, AudioFileClip
 import re
 
 # 视频页面 URL
-url = input("请输入 Bilibili 视频的网址\n ")
+url = input("请输入 Bilibili 视频的网址:\n ")
 
 def extract_bv(url):
     """
