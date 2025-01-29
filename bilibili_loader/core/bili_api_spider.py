@@ -1,6 +1,7 @@
 import requests
 from bilibili_loader.core.bili_web_scraper import BiliWebScraper
 from bilibili_loader.utils.file_utils import load_json, download_web_file
+import streamlit as st
 
 class BiliApiSpider:
     """Bilibili API 爬取视频。"""
@@ -35,6 +36,9 @@ class BiliApiSpider:
                              audio_path = "bilibili_loader/cache/audio/audio.m4a"):
         """下载视频或音频文件。"""
         video_base_urls, audio_base_urls = self.get_baseurl_list()
+        
+        st.write(video_base_urls)
+        st.write(audio_base_urls)
         
         for video_url in video_base_urls:
             if download_web_file(video_url, video_path):
