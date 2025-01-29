@@ -47,6 +47,7 @@ class BiliApiSpider:
                 self.audio_downloaded = True
                 break
             
+        st.write(self.video_downloaded, self.audio_downloaded)
         if self.video_downloaded and self.audio_downloaded:
             return True
         else:
