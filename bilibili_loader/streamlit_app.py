@@ -70,3 +70,5 @@ if st.session_state.is_parsing and not st.session_state.is_downloaded and st.ses
                 st.error("合并失败")
         except Exception as e:
             st.error(f"合并失败: {e}")
+    else:
+        st.error("资源准备失败")
