@@ -1,7 +1,7 @@
 import requests
 from bilibili_loader.core.bili_web_scraper import BiliWebScraper
 from bilibili_loader.utils.file_utils import load_json, download_web_file
-import streamlit as st
+
 
 class BiliApiSpider:
     """Bilibili API 爬取视频。"""
@@ -47,7 +47,6 @@ class BiliApiSpider:
                 self.audio_downloaded = True
                 break
             
-        st.write(self.video_downloaded, self.audio_downloaded)
         if self.video_downloaded and self.audio_downloaded:
             return True
         else:
