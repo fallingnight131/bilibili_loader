@@ -37,12 +37,10 @@ class BiliApiSpider:
         """下载视频或音频文件。"""
         video_base_urls, audio_base_urls = self.get_baseurl_list()
         
-        st.write(video_base_urls)
-        st.write(audio_base_urls)
-        
         for video_url in video_base_urls:
             if download_web_file(video_url, video_path):
                 self.video_downloaded = True
+                st.write("视频下载成功")
                 break
             
         for audio_url in audio_base_urls:
