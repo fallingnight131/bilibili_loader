@@ -7,7 +7,7 @@ from moviepy.editor import VideoFileClip, AudioFileClip
 # 添加顶级包目录到 sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.bili_id_spider import BiliIdSpider
+from bilibili_loader.core.bili_web_scraper import BiliWebScraper
 
 
 # Streamlit 应用标题
@@ -21,13 +21,13 @@ if "is_parsing" not in st.session_state:
     st.session_state.is_parsing = False
 if "is_downloaded" not in st.session_state:
     st.session_state.is_downloaded = False
-
+    
 # 重置状态函数
 def reset_state():
     st.session_state.url = ""
     st.session_state.is_parsing = False
     st.session_state.is_downloaded = False
-    st.experimental_rerun()  # 重新运行脚本以更新界面
+    st.rerun() # 重新运行脚本以更新界面
 
 # 开始解析函数
 def start_parsing():
@@ -38,11 +38,11 @@ def start_parsing():
 url = st.text_input("请输入 Bilibili 视频的网址:", value=st.session_state.url, key="url_input")
 col1, col2 = st.columns(2)
 with col1:
-    if st.button("解析"):
+    if st.button("开始解析"):
         st.session_state.url = url
         start_parsing()
 with col2:
-    if st.button("重置"):
+    if st.button("停止解析"):
         reset_state()
 
 
@@ -62,17 +62,16 @@ def download_file(url, filename):
 # **解析和下载逻辑**
 if st.session_state.is_parsing and not st.session_state.is_downloaded and st.session_state.url:
     st.write("正在解析，请稍候...")
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
-    }
 
     # 初始化 BiliIdSpider 实例
-    bili_id_spider = BiliIdSpider(headers)
+    bili_web_scraper = BiliWebScraper(url = url)
     
-      
     # 获取 aid 和 cid
-    aid, bvid, cid, error = bili_id_spider.find_api_inf(url)
+    aid, bvid, cid, error = bili_web_scraper.find_api_inf()
+    name = bili_web_scraper.find_video_name()
+    
     if aid and cid:
+        
         # 请求视频和音频下载地址
         params = {"fnver": "0", "fnval": "4048", "fourk": "1", "aid": aid, "bvid": bvid, "cid": cid}
         response = requests.get("https://api.bilibili.com/x/player/playurl", params=params, headers=headers)
