@@ -12,8 +12,8 @@ class BiliApiSpider:
         aid, bvid, cid = self.bili_web_scraper.find_api_inf()
         self.params = {"fnver": "0", "fnval": "4048", "fourk": "1", "aid": aid, "bvid": bvid, "cid": cid}
         self.name = self.bili_web_scraper.find_video_name()
-        video_downloaded = False
-        audio_downloaded = False
+        self.video_downloaded = False
+        self.audio_downloaded = False
         
     def get_baseurl_list(self):
         """从 API 返回的数据中提取视频和音频的下载地址。"""
