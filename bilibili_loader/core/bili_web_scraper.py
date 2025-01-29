@@ -29,12 +29,15 @@ class BiliWebScraper:
                     if matched_bvid == self.bvid:
                         self.aid = aid
                         self.cid = cid
-                        return self.aid, self.bvid, self.cid, None
-                return None, None, None, f"未找到匹配的 BV 号: {self.bvid}"
+                        return self.aid, self.bvid, self.cid
+                print(f"未找到匹配的 BV 号: {self.bvid}")
+                return None, None, None
             else:
-                return None, None, None, f"请求失败，状态码：{response.status_code}"
+                print(f"请求失败: {response.status_code}")
+                return None, None, None
         except Exception as e:
-            return None, None, None, f"请求失败: {e}"
+            print(f"请求失败: {e}")
+            return None, None, None
         
     def find_video_name(self):
         """从 Bilibili 页面中提取视频标题。"""
