@@ -1,6 +1,6 @@
 import json
+import os
 import requests
-import streamlit as st
 
 def load_json(filename="headers.json"):
         """加载 headers.json"""
@@ -8,15 +8,18 @@ def load_json(filename="headers.json"):
             with open(filename, "r", encoding="utf-8") as f:
                 return json.load(f)
         except FileNotFoundError:
-            st.error(f"❌ 未找到 {filename} 文件，请检查路径是否正确")
+            print(f"⚠️ 文件 {filename} 未找到，使用默认 headers")
             return {}
         except json.JSONDecodeError:
-            st.error(f"❌ {filename} 文件格式错误，请检查是否为合法 JSON 格式")
+            print(f"⚠️ 解析 {filename} 失败，请检查 JSON 格式")
             return {}
         
 def download_web_file(url, file_path):
     """下载文件的通用函数。"""
     try:
+        # 确保目录存在
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
         response = requests.get(url, stream=True)
         response.raise_for_status()
         with open(file_path, "wb") as f:
@@ -24,5 +27,5 @@ def download_web_file(url, file_path):
                 f.write(chunk)
         return True
     except Exception as e:
-        st.error(f"❌ 下载失败: {e}")
+        print(f"下载失败: {e}")
     return False
