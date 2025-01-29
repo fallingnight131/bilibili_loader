@@ -40,7 +40,6 @@ class BiliApiSpider:
         for video_url in video_base_urls:
             if download_web_file(video_url, video_path):
                 self.video_downloaded = True
-                st.write("视频下载成功")
                 break
             
         for audio_url in audio_base_urls:
