@@ -1,6 +1,7 @@
 import streamlit as st
 import uuid
 import os
+import time
 from bilibili_loader.core.bili_api_spider import BiliApiSpider
 from bilibili_loader.utils.video_utils import merge_video
 from bilibili_loader.app.state import StateManager as state
@@ -28,14 +29,14 @@ def process_download():
     audio_path = f"bilibili_loader/cache/audio/audio_{unique_id}.m4a"
 
     # 下载视频和音频
+    # 开始时间
+    start_time = time.time()
     download_state, error = bili_api_spider.download_media(video_path, audio_path)
-    while not download_state and not error and state.is_parsing():
+    while not download_state and not error and state.is_parsing() and time.time() - start_time < 600:
         download_state, error = bili_api_spider.download_media(video_path, audio_path)
         
-    if not error:
-        
+    if download_state:
         st.write("资源准备成功，开始整合。")
-
         try:
             output_path = "bilibili_loader/cache/output"
             output_name = bili_api_spider.name or "bilibili_video"  # 避免 output_name 为空
@@ -47,14 +48,15 @@ def process_download():
                 state.set_name(output_name)
                 
                 st.rerun()  # 重新运行 Streamlit 应用以更新下载按钮
-                
             else:
                 st.error("融合失败，两股力量发生了排斥！")
         except Exception:
             st.error(f"融合失败，受到未知力量干扰！")
+    elif not download_state and not error:
+        st.error("道中偶遇耐抓视频，拼尽全力无法战胜")
     else:
         st.error(f"下载失败: {error}")
-
-    # 清理临时文件
+        
+    # 删除视频和音频文件
     remove_file(video_path)
     remove_file(audio_path)
