@@ -37,15 +37,17 @@ class BiliApiSpider:
         """下载视频或音频文件。"""
         video_base_urls, audio_base_urls = self.get_baseurl_list()
         
-        for video_url in video_base_urls:
-            if download_web_file(video_url, video_path):
-                self.video_downloaded = True
+        if not self.video_downloaded:
+            for video_url in video_base_urls:
+                if download_web_file(video_url, video_path):
+                    self.video_downloaded = True
                 break
             
-        for audio_url in audio_base_urls:
-            if download_web_file(audio_url, audio_path):
-                self.audio_downloaded = True
-                break
+        if not self.audio_downloaded:
+            for audio_url in audio_base_urls:
+                if download_web_file(audio_url, audio_path):
+                    self.audio_downloaded = True
+                    break
             
         if self.video_downloaded and self.audio_downloaded:
             return True
