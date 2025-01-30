@@ -34,7 +34,9 @@ def process_download():
 
                 # 提供下载按钮
                 with open(output_file, "rb") as f:
-                    st.download_button("下载视频", f, file_name=f"out.mp4", mime="video/mp4")
+                    # 使用 os.path.basename() 提取纯文件名
+                    file_name = os.path.basename(output_file)
+                    st.download_button("下载视频", f, file_name=file_name, mime="video/mp4")
 
                 # 更新状态
                 st.session_state.is_downloaded = True
