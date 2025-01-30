@@ -23,3 +23,8 @@ def render_buttons(url):
     with col2:
         if stop_parsing_button():
             state.reset()
+            
+def download_button(output_file, output_name):
+    """提供下载按钮"""
+    with open(output_file, "rb") as f:
+        st.download_button("下载视频", f, file_name=f"{output_name}.mp4", mime="video/mp4")

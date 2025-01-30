@@ -33,14 +33,12 @@ def process_download():
         output_file = merge_video(video_path, audio_path, output_path, output_name)
 
         if output_file and os.path.exists(output_file):
-            st.success(f"合并完成: {output_name}.mp4")
-
-            # 提供下载按钮
-            with open(output_file, "rb") as f:
-                st.download_button("下载视频", f, file_name=f"{output_name}.mp4", mime="video/mp4")
-
-            # 更新状态
             st.session_state.is_downloaded = True
+            st.session_state.is_parsing = False
+            state.set_name(output_name)
+            
+            st.rerun()  # 重新运行 Streamlit 应用以更新下载按钮
+            
         else:
             st.error("合并失败，文件未生成")
     except Exception as e:

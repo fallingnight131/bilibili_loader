@@ -19,8 +19,13 @@ st.write("输入 Bilibili 视频 URL，下载并合并视频和音频到本地�
 # 输入框和按钮
 url = ui.input_url()
 
-# 解析和下载按钮
+# 解析和取消按钮
 ui.render_buttons(url)
+
+# 下载按钮
+if state.is_downloaded() and state.with_name():
+    st.success(f"合并完成: {state.get_name()}.mp4")
+    ui.download_button(f"bilibili_loader/cache/output/{state.get_name()}.mp4", state.get_name())
 
 # 解析和下载逻辑
 if state.is_parsing() and not state.is_downloaded() and state.with_url():
