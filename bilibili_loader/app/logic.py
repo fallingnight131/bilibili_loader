@@ -2,6 +2,7 @@ import streamlit as st
 import uuid
 import os
 import time
+import math
 from bilibili_loader.core.bili_api_spider import BiliApiSpider
 from bilibili_loader.utils.video_utils import merge_video
 from bilibili_loader.app.state import StateManager as state
@@ -10,6 +11,8 @@ from bilibili_loader.utils.file_utils import remove_file
 
 def process_download():
     """处理视频下载和合并"""
+    progress_bar = st.progress(0)  # 创建一个进度条
+    
     st.write("正在解析，请稍候...")
     
     # 生成唯一 ID
@@ -28,15 +31,23 @@ def process_download():
     video_path = f"bilibili_loader/cache/video/video_{unique_id}.mp4"
     audio_path = f"bilibili_loader/cache/audio/audio_{unique_id}.m4a"
 
+    progress_bar.progress(25)  # 更新进度条
+    
     # 下载视频和音频
     # 开始时间
     start_time = time.time()
     download_state, error = bili_api_spider.download_media(video_path, audio_path)
-    while not download_state and not error and state.is_parsing() and time.time() - start_time < 600:
+    time_gap = time.time() - start_time
+    
+    while not download_state and not error and state.is_parsing() and time_gap < 300:
         download_state, error = bili_api_spider.download_media(video_path, audio_path)
+        time_gap = time.time() - start_time
+        if time_gap < 180:
+            progress_bar.progress(25 + math.ceil(time_gap / 4))   # 更新进度条
         
     if download_state:
         st.write("资源准备成功，开始整合。")
+        progress_bar.progress(70)  # 更新进度条
         try:
             output_path = "bilibili_loader/cache/output"
             output_name = bili_api_spider.name or "bilibili_video"  # 避免 output_name 为空
@@ -53,7 +64,7 @@ def process_download():
         except Exception:
             st.error(f"融合失败，受到未知力量干扰！")
     elif not download_state and not error:
-        st.error("道中偶遇耐抓视频，拼尽全力无法战胜")
+        st.error("道中偶遇耐抓视频，拼尽全力无法战胜。")
     else:
         st.error(f"下载失败: {error}")
         

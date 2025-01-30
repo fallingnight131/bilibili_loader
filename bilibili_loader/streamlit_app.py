@@ -24,6 +24,7 @@ ui.render_buttons(url)
 
 # 下载按钮
 if state.is_downloaded() and state.with_name():
+    progress_bar = st.progress(100)
     st.success(f"合并完成: {state.get_name()}.mp4")
     ui.download_button(f"bilibili_loader/cache/output/{state.get_name()}.mp4", state.get_name())
 
