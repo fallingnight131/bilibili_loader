@@ -25,7 +25,7 @@ def process_download():
         st.write("资源准备成功，开始整合。")
 
         try:
-            output_path = os.path.dirname(os.path.abspath("bilibili_loader"))
+            output_path = "bilibili_loader/cache/output"
             output_name = bili_api_spider.name or "bilibili_video"  # 避免 output_name 为空
             output_file = merge_video(video_path, audio_path, output_path, output_name)
 
