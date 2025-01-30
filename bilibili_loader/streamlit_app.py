@@ -5,7 +5,7 @@ import sys
 # 添加根目录到 sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import bilibili_loader.app.state as state
+from bilibili_loader.app.state import StateManager as state
 import bilibili_loader.app.ui as ui
 import bilibili_loader.app.logic as logic
 
@@ -23,5 +23,5 @@ url = ui.input_url()
 ui.render_buttons(url)
 
 # 解析和下载逻辑
-if state.is_parsing() and not state.is_downloaded() and state.get_url():
+if state.is_parsing() and not state.is_downloaded() and state.with_url():
     logic.process_download()
