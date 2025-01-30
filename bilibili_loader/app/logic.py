@@ -36,7 +36,7 @@ def process_download():
                 with open(output_file, "rb") as f:
                     # 使用 os.path.basename() 提取纯文件名
                     file_name = os.path.basename(output_file)
-                    st.write(f"下载文件: {file_name}")
+                    st.write(f"下载 {file_name}")
                     st.download_button("下载视频", f, file_name=file_name, mime="video/mp4")
 
                 # 更新状态
