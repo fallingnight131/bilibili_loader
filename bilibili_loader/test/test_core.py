@@ -41,6 +41,6 @@ def process_download():
             # 更新状态
             st.session_state.is_downloaded = True
         else:
-            st.error("合并失败，文件未生成")
+            st.error("融合失败，两股力量发生了排斥。")
     except Exception as e:
-        st.error(f"合并失败: {e}")
+        st.error(f"融合失败，两股力量发生了排斥。")

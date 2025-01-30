@@ -29,3 +29,10 @@ def download_web_file(url, file_path):
     except Exception as e:
         print(f"下载失败: {e}")
     return False
+
+def remove_file(file_path):
+    """删除文件"""
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        return True
+    return False

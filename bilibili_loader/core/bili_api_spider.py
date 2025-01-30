@@ -18,38 +18,48 @@ class BiliApiSpider:
         
     def get_baseurl_list(self):
         """从 API 返回的数据中提取视频和音频的下载地址。"""
-        if self.params["aid"] and self.params["cid"]:
-            response = requests.get(self.api_url, params=self.params, headers=self.headers)
-            if response.status_code == 200:
-                data = response.json()
-                video_base_urls = [video.get('baseUrl', video.get('base_url')) for video in data['data']['dash']['video']]
-                audio_base_urls = [audio.get('baseUrl', audio.get('base_url')) for audio in data['data']['dash']['audio']]
-                return video_base_urls, audio_base_urls
+        try:
+            if self.params["aid"] and self.params["cid"]:
+                response = requests.get(self.api_url, params=self.params, headers=self.headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    video_base_urls = [video.get('baseUrl', video.get('base_url')) for video in data['data']['dash']['video']]
+                    audio_base_urls = [audio.get('baseUrl', audio.get('base_url')) for audio in data['data']['dash']['audio']]
+                    return video_base_urls, audio_base_urls, None
+                else:
+                    return None, None, f"这个视频被强大的能量包裹，暂且无法被观测哦~ 请稍作休息后再尝试吧。"
             else:
-                print(f"请求失败: {response.status_code}")
-                return None, None
-        else:
-            print("api 参数获取错误")
-            return None, None
+                return None, None, "您输入的咒语貌似包含了不属于这个世界的力量，大地与天空并没有给予回应。"
+            
+        except KeyError as e:
+            return None, None, f"这个视频被跨越时间的能量包裹，需要旧时代的利刃才能破开。"
+        
+        except Exception as e:
+            return None, None, f"糟糕，被未知力场影响了。"
 
     def download_media(self, video_path = "bilibili_loader/cache/video/video.mp4", 
                              audio_path = "bilibili_loader/cache/audio/audio.m4a"):
         """下载视频或音频文件。"""
-        video_base_urls, audio_base_urls = self.get_baseurl_list()
+        video_base_urls, audio_base_urls , error = self.get_baseurl_list()
         
-        if not self.video_downloaded:
-            for video_url in video_base_urls:
-                if download_web_file(video_url, video_path):
-                    self.video_downloaded = True
-                break
-            
-        if not self.audio_downloaded:
-            for audio_url in audio_base_urls:
-                if download_web_file(audio_url, audio_path):
-                    self.audio_downloaded = True
+        if not error:
+            if not self.video_downloaded:
+                for video_url in video_base_urls:
+                    if download_web_file(video_url, video_path):
+                        self.video_downloaded = True
                     break
+                
+            if not self.audio_downloaded:
+                for audio_url in audio_base_urls:
+                    if download_web_file(audio_url, audio_path):
+                        self.audio_downloaded = True
+                        break
+                
+            if self.video_downloaded and self.audio_downloaded:
+                return True, None
             
-        if self.video_downloaded and self.audio_downloaded:
-            return True
+            else:
+                return False, None
+            
         else:
-            return False
+            return None, error

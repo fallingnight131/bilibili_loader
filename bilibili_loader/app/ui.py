@@ -7,14 +7,14 @@ def input_url():
 
 def start_parsing_button():
     """开始解析按钮"""
-    return st.button("开始解析", key="start_btn")
+    return st.button("解析", key="start_btn")
 
 def stop_parsing_button():
-    """停止解析按钮"""
-    return st.button("停止解析", key="stop_btn")
+    """重置按钮"""
+    return st.button("重置", key="stop_btn")
 
 def render_buttons(url):
-    """渲染解析和停止按钮"""
+    """渲染解析和重置按钮"""
     col1, col2 = st.columns(2)
     with col1:
         if start_parsing_button():

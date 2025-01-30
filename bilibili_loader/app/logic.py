@@ -1,12 +1,18 @@
 import streamlit as st
+import uuid
+import os
 from bilibili_loader.core.bili_api_spider import BiliApiSpider
 from bilibili_loader.utils.video_utils import merge_video
 from bilibili_loader.app.state import StateManager as state
-import os
+from bilibili_loader.utils.file_utils import remove_file
+
 
 def process_download():
     """处理视频下载和合并"""
     st.write("正在解析，请稍候...")
+    
+    # 生成唯一 ID
+    unique_id = uuid.uuid4().hex  
 
     # 获取 URL，确保不为空
     url = st.session_state.get("url", "")
@@ -18,28 +24,37 @@ def process_download():
     bili_api_spider = BiliApiSpider(url=url)
 
     # 资源存储路径
-    video_path = "bilibili_loader/cache/video/video.mp4"
-    audio_path = "bilibili_loader/cache/audio/audio.m4a"
+    video_path = f"bilibili_loader/cache/video/video_{unique_id}.mp4"
+    audio_path = f"bilibili_loader/cache/audio/audio_{unique_id}.m4a"
 
     # 下载视频和音频
-    while not bili_api_spider.download_media(video_path, audio_path) and state.is_parsing():
-        pass
-    
-    st.write("资源准备成功，开始整合。")
+    download_state, error = bili_api_spider.download_media(video_path, audio_path)
+    while not download_state and not error and state.is_parsing():
+        download_state, error = bili_api_spider.download_media(video_path, audio_path)
+        
+    if not error:
+        
+        st.write("资源准备成功，开始整合。")
 
-    try:
-        output_path = "bilibili_loader/cache/output"
-        output_name = bili_api_spider.name or "bilibili_video"  # 避免 output_name 为空
-        output_file = merge_video(video_path, audio_path, output_path, output_name)
+        try:
+            output_path = "bilibili_loader/cache/output"
+            output_name = bili_api_spider.name or "bilibili_video"  # 避免 output_name 为空
+            output_file = merge_video(video_path, audio_path, output_path, output_name)
 
-        if output_file and os.path.exists(output_file):
-            st.session_state.is_downloaded = True
-            st.session_state.is_parsing = False
-            state.set_name(output_name)
-            
-            st.rerun()  # 重新运行 Streamlit 应用以更新下载按钮
-            
-        else:
-            st.error("合并失败，文件未生成")
-    except Exception as e:
-        st.error(f"合并失败: {e}")
+            if output_file and os.path.exists(output_file):
+                state.set_downloaded(True)
+                state.set_parsing(False)
+                state.set_name(output_name)
+                
+                st.rerun()  # 重新运行 Streamlit 应用以更新下载按钮
+                
+            else:
+                st.error("融合失败，两股力量发生了排斥！")
+        except Exception:
+            st.error(f"融合失败，受到未知力量干扰！")
+    else:
+        st.error(f"下载失败: {error}")
+
+    # 清理临时文件
+    remove_file(video_path)
+    remove_file(audio_path)

@@ -1,4 +1,5 @@
 import streamlit as st
+from bilibili_loader.utils.file_utils import remove_file
 
 class StateManager:
     @staticmethod
@@ -13,6 +14,9 @@ class StateManager:
         if "is_downloaded" not in st.session_state:
             st.session_state.is_downloaded = False
 
+
+
+
     @staticmethod
     def set_url(url: str):
         """设置 URL"""
@@ -22,6 +26,15 @@ class StateManager:
     def set_name(name: str):
         """设置视频名称"""
         st.session_state.name = name
+
+    def set_parsing(status: bool):
+        """设置正在解析"""
+        st.session_state.is_parsing = status
+        
+    @staticmethod
+    def set_downloaded(status: bool):
+        """设置已下载"""
+        st.session_state.is_downloaded = status
 
     @staticmethod
     def start_parsing():
@@ -38,7 +51,7 @@ class StateManager:
         st.session_state.is_parsing = False
         st.session_state.is_downloaded = False
         st.rerun()
-
+        
     @staticmethod
     def is_parsing() -> bool:
         """是否正在解析"""
@@ -68,4 +81,4 @@ class StateManager:
     def get_name() -> str:
         """获取视频名称"""
         return st.session_state.name
-
+    

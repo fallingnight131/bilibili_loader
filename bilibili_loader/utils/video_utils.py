@@ -1,5 +1,6 @@
 import os
 from moviepy.editor import VideoFileClip, AudioFileClip
+from bilibili_loader.utils.file_utils import remove_file
 
 def merge_video(video_path="bilibili_loader/cache/video/video.mp4", 
                 audio_path="bilibili_loader/cache/audio/audio.m4a", 
@@ -23,8 +24,6 @@ def merge_video(video_path="bilibili_loader/cache/video/video.mp4",
         video.close()
         audio.close()
         # 清理临时文件
-        if os.path.exists(video_path):
-            os.remove(video_path)
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
+        remove_file(video_path)
+        remove_file(audio_path)
     
