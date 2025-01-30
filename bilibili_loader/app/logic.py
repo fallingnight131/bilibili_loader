@@ -27,7 +27,7 @@ def process_download():
         try:
             output_path = "bilibili_loader/cache/output"
             output_name = bili_api_spider.name or "bilibili_video"  # 避免 output_name 为空
-            output_file = merge_video(video_path, audio_path, output_name, output_name)
+            output_file = merge_video(video_path, audio_path, output_path, output_name)
 
             if output_file and os.path.exists(output_file):
                 st.success(f"合并完成: {output_name}.mp4")
