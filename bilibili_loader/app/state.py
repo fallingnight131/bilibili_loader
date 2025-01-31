@@ -1,5 +1,4 @@
 import streamlit as st
-from bilibili_loader.utils.file_utils import remove_file
 
 class StateManager:
     @staticmethod
@@ -13,9 +12,6 @@ class StateManager:
             st.session_state.is_parsing = False
         if "is_downloaded" not in st.session_state:
             st.session_state.is_downloaded = False
-
-
-
 
     @staticmethod
     def set_url(url: str):

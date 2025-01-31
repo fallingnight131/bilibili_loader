@@ -4,8 +4,8 @@ import os
 import time
 import math
 from bilibili_loader.core.bili_api_spider import BiliApiSpider
-from bilibili_loader.utils.video_utils import merge_video
 from bilibili_loader.app.state import StateManager as state
+from bilibili_loader.utils.video_utils import merge_video
 from bilibili_loader.utils.file_utils import remove_file, get_random_file, load_json
 
 
