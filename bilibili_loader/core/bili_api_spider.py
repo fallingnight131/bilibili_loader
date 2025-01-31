@@ -31,10 +31,10 @@ class BiliApiSpider:
             else:
                 return None, None, "您输入的咒语貌似包含了不属于这个世界的力量，大地与天空并没有给予回应。"
             
-        except KeyError as e:
+        except KeyError:
             return None, None, f"这个视频被跨越时间的能量包裹，需要旧时代的利刃才能破开。"
         
-        except Exception as e:
+        except Exception:
             return None, None, f"糟糕，被未知力场影响了。"
 
     def download_media(self, video_path = "bilibili_loader/cache/video/video.mp4", 
@@ -47,7 +47,7 @@ class BiliApiSpider:
                 for video_url in video_base_urls:
                     if download_web_file(video_url, video_path):
                         self.video_downloaded = True
-                    break
+                        break
                 
             if not self.audio_downloaded:
                 for audio_url in audio_base_urls:
