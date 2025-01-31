@@ -30,13 +30,10 @@ class BiliWebScraper:
                         self.aid = aid
                         self.cid = cid
                         return self.aid, self.bvid, self.cid
-                print(f"未找到匹配的 BV 号: {self.bvid}")
                 return None, None, None
             else:
-                print(f"请求失败: {response.status_code}")
                 return None, None, None
-        except Exception as e:
-            print(f"请求失败: {e}")
+        except Exception:
             return None, None, None
         
     def find_video_name(self):

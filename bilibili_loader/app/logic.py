@@ -27,7 +27,6 @@ def process_download():
     # 初始化爬虫对象
     headers = load_json(get_random_file("bilibili_loader/config/headers"))
     bili_api_spider = BiliApiSpider(headers=headers,url=url)
-    print(headers)
 
     # 资源存储路径
     video_path = f"bilibili_loader/cache/video/video_{unique_id}.mp4"
