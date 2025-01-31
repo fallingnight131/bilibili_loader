@@ -1,6 +1,7 @@
 import json
 import os
 import requests
+import random
 
 def load_json(filename="headers.json"):
         """加载 headers.json"""
@@ -36,3 +37,15 @@ def remove_file(file_path):
         os.remove(file_path)
         return True
     return False
+
+def get_random_file(folder_path):
+    """从指定文件夹中随机获取一个文件的路径"""
+    if not os.path.isdir(folder_path):
+        raise ValueError(f"路径 '{folder_path}' 不是一个有效的文件夹")
+
+    files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+    
+    if not files:
+        raise FileNotFoundError(f"文件夹 '{folder_path}' 中没有文件")
+    
+    return os.path.join(folder_path, random.choice(files))

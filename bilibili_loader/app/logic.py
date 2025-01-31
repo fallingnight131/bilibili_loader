@@ -6,7 +6,7 @@ import math
 from bilibili_loader.core.bili_api_spider import BiliApiSpider
 from bilibili_loader.utils.video_utils import merge_video
 from bilibili_loader.app.state import StateManager as state
-from bilibili_loader.utils.file_utils import remove_file
+from bilibili_loader.utils.file_utils import remove_file, get_random_file, load_json
 
 
 def process_download():
@@ -25,7 +25,9 @@ def process_download():
         return
 
     # 初始化爬虫对象
-    bili_api_spider = BiliApiSpider(url=url)
+    headers = load_json(get_random_file("bilibili_loader/config/headers"))
+    bili_api_spider = BiliApiSpider(headers=headers,url=url)
+    print(headers)
 
     # 资源存储路径
     video_path = f"bilibili_loader/cache/video/video_{unique_id}.mp4"
