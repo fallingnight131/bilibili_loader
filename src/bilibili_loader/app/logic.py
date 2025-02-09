@@ -25,7 +25,7 @@ def process_download():
         return
 
     # 初始化爬虫对象
-    headers = load_json(get_random_file("bilibili_loader/config/headers"))
+    headers = load_json(get_random_file("src/bilibili_loader/config/headers"))
     bili_api_spider = BiliApiSpider(headers=headers,url=url)
 
     # 资源存储路径

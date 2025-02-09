@@ -3,7 +3,7 @@ import requests
 from bilibili_loader.utils.file_utils import load_json
 
 class BiliWebScraper:
-    def __init__(self, headers=load_json("bilibili_loader/config/headers/1.json"), url=None):
+    def __init__(self, headers=load_json("src/bilibili_loader/config/headers/1.json"), url=None):
         self.aid = None
         self.bvid = None
         self.cid = None
