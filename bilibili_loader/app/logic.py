@@ -29,8 +29,8 @@ def process_download():
     bili_api_spider = BiliApiSpider(headers=headers,url=url)
 
     # 资源存储路径
-    video_path = f"bilibili_loader/cache/video/video_{unique_id}.mp4"
-    audio_path = f"bilibili_loader/cache/audio/audio_{unique_id}.m4a"
+    video_path = f"cache/video/video_{unique_id}.mp4"
+    audio_path = f"cache/audio/audio_{unique_id}.m4a"
 
     progress_bar.progress(25)  # 更新进度条
     
@@ -50,7 +50,7 @@ def process_download():
         st.write("资源准备成功，开始整合。")
         progress_bar.progress(70)  # 更新进度条
         try:
-            output_path = "bilibili_loader/cache/output"
+            output_path = "cache/output"
             output_name = bili_api_spider.name or "bilibili_video"  # 避免 output_name 为空
             output_file = merge_video(video_path, audio_path, output_path, output_name)
 

@@ -2,9 +2,9 @@ import os
 from moviepy.editor import VideoFileClip, AudioFileClip
 from bilibili_loader.utils.file_utils import remove_file
 
-def merge_video(video_path="bilibili_loader/cache/video/video.mp4", 
-                audio_path="bilibili_loader/cache/audio/audio.m4a", 
-                output_path="bilibili_loader/cache/output",
+def merge_video(video_path="cache/video/video.mp4", 
+                audio_path="cache/audio/audio.m4a", 
+                output_path="cache/output",
                 output_name="output"):
     """合并视频和音频文件。"""
     try:

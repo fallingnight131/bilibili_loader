@@ -37,8 +37,8 @@ class BiliApiSpider:
         except Exception:
             return None, None, f"糟糕，被未知力场影响了。"
 
-    def download_media(self, video_path = "bilibili_loader/cache/video/video.mp4", 
-                             audio_path = "bilibili_loader/cache/audio/audio.m4a"):
+    def download_media(self, video_path = "cache/video/video.mp4", 
+                             audio_path = "cache/audio/audio.m4a"):
         """下载视频或音频文件。"""
         video_base_urls, audio_base_urls , error = self.get_baseurl_list()
         
