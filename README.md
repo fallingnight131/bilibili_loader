@@ -83,7 +83,7 @@ pip install -r requirements.txt
 
 # 启动服务
 python app.py
-# 默认运行在 http://localhost:5000
+# 默认运行在 http://localhost:5001
 ```
 
 ### 前端
