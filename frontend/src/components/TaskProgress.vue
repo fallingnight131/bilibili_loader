@@ -21,9 +21,9 @@
 
     <!-- 已完成：下载按钮 + 倒计时 -->
     <div v-if="task.status === 'completed'" class="task-completed">
-      <a :href="fileUrl" class="download-link">
-        <el-button type="primary" size="small">下载文件</el-button>
-      </a>
+      <el-button type="primary" size="small" :loading="downloading" @click="handleDownload">
+        下载文件
+      </el-button>
       <CountdownTimer
         v-if="task.expires_at"
         :expires-at="task.expires_at"
@@ -47,8 +47,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useDownloadStore } from '../stores/download'
+import api from '../utils/api'
 import CountdownTimer from './CountdownTimer.vue'
 
 const props = defineProps({
@@ -59,8 +61,20 @@ const props = defineProps({
 })
 
 const downloadStore = useDownloadStore()
+const downloading = ref(false)
 
-const fileUrl = computed(() => downloadStore.getFileUrl(props.task.id))
+async function handleDownload() {
+  downloading.value = true
+  try {
+    const res = await api.post(`/api/download/file-token/${props.task.id}`)
+    const token = res.data.data.token
+    window.location.href = `/api/download/file-by-token/${token}`
+  } catch (e) {
+    ElMessage.error(e.message || '获取下载链接失败')
+  } finally {
+    downloading.value = false
+  }
+}
 
 const statusMap = {
   pending: '等待中',

@@ -3,6 +3,7 @@
 import uuid
 import logging
 import os
+import time
 from datetime import timedelta
 
 from flask import Blueprint, request, jsonify, send_file, current_app
@@ -12,6 +13,9 @@ from models import db, DownloadTask, BangumiQuota, now_bjt
 from downloader import parse_bvid, parse_ep_id
 from task_queue import submit_task, get_queue_status
 from config import Config
+
+# 短效下载 token 存储：{token: (task_id, user_id, expire_timestamp)}
+_download_tokens: dict = {}
 
 logger = logging.getLogger(__name__)
 download_bp = Blueprint('download', __name__, url_prefix='/api/download')
@@ -192,7 +196,7 @@ def download_file(task_id):
         return jsonify(code=1, message='任务尚未完成'), 400
 
     # 检查是否过期
-    if task.expires_at and now_bjt() > task.expires_at:
+    if task.expires_at and now_bjt().replace(tzinfo=None) > task.expires_at:
         task.status = 'expired'
         db.session.commit()
         return jsonify(code=1, message='文件已过期'), 410
@@ -201,6 +205,61 @@ def download_file(task_id):
         return jsonify(code=1, message='文件不存在'), 404
 
     # 防止路径遍历：确保文件在 DOWNLOAD_DIR 中
+    real_path = os.path.realpath(task.file_path)
+    real_download_dir = os.path.realpath(Config.DOWNLOAD_DIR)
+    if not real_path.startswith(real_download_dir):
+        return jsonify(code=1, message='非法文件路径'), 403
+
+    filename = os.path.basename(task.file_path)
+    return send_file(real_path, as_attachment=True, download_name=filename)
+
+
+@download_bp.route('/file-token/<task_id>', methods=['POST'])
+@jwt_required()
+def create_download_token(task_id):
+    """为指定任务生成一个 60 秒有效的下载 token"""
+    user_id = int(get_jwt_identity())
+    task = DownloadTask.query.get(task_id)
+
+    if not task or task.user_id != user_id:
+        return jsonify(code=1, message='任务不存在'), 404
+    if task.status != 'completed':
+        return jsonify(code=1, message='任务尚未完成'), 400
+
+    # 清理过期 token
+    now = time.time()
+    expired = [t for t, v in _download_tokens.items() if v[2] < now]
+    for t in expired:
+        _download_tokens.pop(t, None)
+
+    token = uuid.uuid4().hex
+    _download_tokens[token] = (task_id, user_id, now + 60)
+    return jsonify(code=0, data={'token': token})
+
+
+@download_bp.route('/file-by-token/<token>', methods=['GET'])
+def download_file_by_token(token):
+    """使用短效 token 直接下载文件（无需 Authorization 头）"""
+    entry = _download_tokens.pop(token, None)
+    if not entry:
+        return jsonify(code=1, message='token 无效或已过期'), 403
+
+    task_id, user_id, expire = entry
+    if time.time() > expire:
+        return jsonify(code=1, message='token 已过期'), 403
+
+    task = DownloadTask.query.get(task_id)
+    if not task or task.status != 'completed':
+        return jsonify(code=1, message='文件不可用'), 404
+
+    if task.expires_at and now_bjt().replace(tzinfo=None) > task.expires_at:
+        task.status = 'expired'
+        db.session.commit()
+        return jsonify(code=1, message='文件已过期'), 410
+
+    if not task.file_path or not os.path.exists(task.file_path):
+        return jsonify(code=1, message='文件不存在'), 404
+
     real_path = os.path.realpath(task.file_path)
     real_download_dir = os.path.realpath(Config.DOWNLOAD_DIR)
     if not real_path.startswith(real_download_dir):

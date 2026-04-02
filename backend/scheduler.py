@@ -20,7 +20,7 @@ def start_scheduler(app, socketio):
             try:
                 with app.app_context():
                     # 查找已完成且过期的任务
-                    now = now_bjt()
+                    now = now_bjt().replace(tzinfo=None)
                     expired_tasks = DownloadTask.query.filter(
                         DownloadTask.status == 'completed',
                         DownloadTask.expires_at < now
