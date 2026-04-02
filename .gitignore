@@ -34,6 +34,5 @@ dist/
 *.sw?
 
 # OS
-
 Thumbs.db
 .DS_Store

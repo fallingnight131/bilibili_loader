@@ -45,21 +45,41 @@ brew install ffmpeg
 
 # Ubuntu/Debian
 sudo apt install ffmpeg
+
+# Windows（PowerShell）- 任选一种
+winget install --id Gyan.FFmpeg -e
+# 或
+choco install ffmpeg
 ```
 
 ### 后端
 
 ```bash
 cd backend
+
+# 方式一：使用 conda（推荐）
+conda create -n bili_loader python=3.10 -y
+conda activate bili_loader
+
+# 方式二：使用系统 Python（跳过上面两行 conda 命令）
+
+# 配置环境变量
+cp .env.example .env
+# 然后编辑 .env 文件，填入以下必要配置：
+#
+# 1. BILI_SESSDATA 和 BILI_JCT（必填）：
+#    在浏览器（建议chrome）登录b站
+#    右键打开检查
+#    在检查界面的上方菜单选择”应用“
+#    在左侧菜单找到Cookie，点击Cookie目录下https://www.bilibili.com 对应的Cookie
+#    找到 bili_jct 和 SESSDATA，将它们的值分别复制给 BILI_JCT 和 BILI_SESSDATA
+#
+# 2. SECRET_KEY 和 JWT_SECRET_KEY（建议修改）：
+#    用于 JWT Token 签名，生产环境务必改为随机长字符串
+#    可用命令生成：python -c "import secrets; print(secrets.token_hex(32))"
+
+# 安装依赖
 pip install -r requirements.txt
-
-# 配置 B 站 Cookie（必填）
-export BILI_SESSDATA="你的SESSDATA"
-export BILI_JCT="你的bili_jct"
-
-# 可选：修改安全密钥
-export SECRET_KEY="your-secret-key"
-export JWT_SECRET_KEY="your-jwt-secret"
 
 # 启动服务
 python app.py
@@ -83,6 +103,7 @@ npm run dev
 2. 打开浏览器开发者工具（F12）
 3. 切换到 Application/Storage → Cookies
 4. 找到 `SESSDATA` 和 `bili_jct` 的值
+5. 写入 `backend/.env` 中的 `BILI_SESSDATA` 与 `BILI_JCT`
 
 ### 环境变量
 

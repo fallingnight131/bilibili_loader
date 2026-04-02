@@ -1,5 +1,11 @@
 import os
 
+from dotenv import load_dotenv
+
+
+# 自动加载 backend 目录下的 .env 文件
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
 
 class Config:
     """应用配置"""
