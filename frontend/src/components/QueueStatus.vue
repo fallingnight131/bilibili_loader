@@ -6,9 +6,9 @@
       <span class="dot"></span>
     </div>
     <p class="queue-text">
-      当前平台使用人数较多，您前方还有
+      当前平台还有
       <strong>{{ downloadStore.queueStatus.queue_length }}</strong>
-      位用户正在排队
+      个任务等待处理，您的任务将依次执行
     </p>
   </div>
 </template>
