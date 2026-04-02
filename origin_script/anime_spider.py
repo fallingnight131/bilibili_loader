@@ -9,10 +9,10 @@ from urllib.parse import urlencode
 # ====================== 【只需修改这里】 ======================
 EP_ID    = 259707          # 示例：https://www.bilibili.com/bangumi/play/ep259707
 QUALITY  = 80              # 清晰度：80=1080P, 112=1080P+, 116=1080P60, 120=4K
-SAVE_DIR = "bangumi_downloads"
+SAVE_DIR = "downloads"    # 保存目录
 
-SESSDATA = "0ac91153%2C1789890590%2C17b0d%2A31CjCfUTLAxjvbDamfcMZh3cR3X6n4S9qOOLUXXvvdOTahaKEVkl7GLEXnxslS16SsajISVjRzUHlHaTRQakVKTnNUZWRuaVUybTVHZFNONmgwNXU2VTJXa0FhYUNMWnJ1NmhHbmt2ZmVJUHZpb2dJenNZX3RKNm0zYXZsTW01cXUwa0o2NVhIWkZ3IIEC"
-BILI_JCT = "2ca58e8fa5e4392f9bc5276930fc0b0f"
+SESSDATA = ""
+BILI_JCT = ""
 # ==============================================================
 
 # WBI 混淆表 (官方固定映射)

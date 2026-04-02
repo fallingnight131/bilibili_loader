@@ -144,18 +144,27 @@ def get_bangumi_dash_urls(ep_id, quality, img_key, sub_key, headers):
 
 
 def download_stream(url, filename, headers, progress_callback=None):
-    """流式下载，支持进度回调"""
-    with requests.get(url, headers=headers, stream=True, timeout=60) as r:
-        r.raise_for_status()
-        total_size = int(r.headers.get('content-length', 0))
-        done = 0
-        with open(filename, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=1024 * 1024):
-                if chunk:
-                    f.write(chunk)
-                    done += len(chunk)
-                    if progress_callback and total_size:
-                        progress_callback(done / total_size * 100)
+    """流式下载，支持进度回调与自动重试"""
+    max_retries = 5
+    for i in range(max_retries):
+        try:
+            with requests.get(url, headers=headers, stream=True, timeout=30) as r:
+                r.raise_for_status()
+                total_size = int(r.headers.get('content-length', 0))
+                done = 0
+                with open(filename, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=1024 * 512):
+                        if chunk:
+                            f.write(chunk)
+                            done += len(chunk)
+                            if progress_callback and total_size:
+                                progress_callback(done / total_size * 100)
+            return
+        except (requests.exceptions.RequestException, Exception) as e:
+            logger.warning(f'下载第 {i+1} 次失败: {e}')
+            time.sleep(2)
+            if i == max_retries - 1:
+                raise RuntimeError(f'下载彻底失败: {e}')
 
 
 def merge_av(video_path, audio_path, output_path):

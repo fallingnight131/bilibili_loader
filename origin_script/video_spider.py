@@ -7,13 +7,13 @@ import hashlib
 from urllib.parse import urlencode
 
 # ====================== 【只需修改这里】 ======================
-BVID     = "BV1c7wEzrEBm"  # 目标视频 BV 号
+BVID     = "BV1DzCABvEAV"  # 目标视频 BV 号
 QUALITY  = 120             # 期望清晰度：120=4K, 116=1080P60, 80=1080P
 SAVE_DIR = "downloads"     # 保存目录
 
 # 建议从你的 Flask 配置或数据库中读取以下信息
-SESSDATA = "0ac91153%2C1789890590%2C17b0d%2A31CjCfUTLAxjvbDamfcMZh3cR3X6n4S9qOOLUXXvvdOTahaKEVkl7GLEXnxslS16SsajISVjRzUHlHaTRQakVKTnNUZWRuaVUybTVHZFNONmgwNXU2VTJXa0FhYUNMWnJ1NmhHbmt2ZmVJUHZpb2dJenNZX3RKNm0zYXZsTW01cXUwa0o2NVhIWkZ3IIEC"
-BILI_JCT = "2ca58e8fa5e4392f9bc5276930fc0b0f"
+SESSDATA = ""
+BILI_JCT = ""
 # ==============================================================
 
 # WBI 混淆表 (官方固定映射)
@@ -104,14 +104,26 @@ def get_dash_urls(bvid, cid, quality, img_key, sub_key):
     return dash["video"][0]["baseUrl"], dash["audio"][0]["baseUrl"]
 
 def download_stream(url, filename, label):
-    """流式下载音视频分片"""
+    """优化后的下载函数：支持流式读取与异常捕获"""
     print(f"  正在下载 {label}...")
-    with requests.get(url, headers=HEADERS, stream=True, timeout=60) as r:
-        r.raise_for_status()
-        with open(filename, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=1024*1024):
-                if chunk:
-                    f.write(chunk)
+    max_retries = 5  # 最大重试次数
+    
+    for i in range(max_retries):
+        try:
+            # 增加 timeout 防止死等，设置 stream=True
+            with requests.get(url, headers=HEADERS, stream=True, timeout=30) as r:
+                r.raise_for_status()
+                with open(filename, 'wb') as f:
+                    # 使用较小的 chunk_size，并手动迭代
+                    for chunk in r.iter_content(chunk_size=1024 * 512): # 512KB
+                        if chunk:
+                            f.write(chunk)
+                return # 下载成功，退出循环
+        except (requests.exceptions.RequestException, Exception) as e:
+            print(f"  ⚠️ {label} 第 {i+1} 次尝试失败: {e}")
+            time.sleep(2) # 等待后重试
+            if i == max_retries - 1:
+                raise RuntimeError(f"{label} 下载彻底失败")
 
 def merge_video_audio(video_file, audio_file, output_file):
     """调用 FFmpeg 进行无损合并"""
