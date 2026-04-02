@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+.env*
+venv/
+ENV/
+.venv/
+
+# SQLite
+*.db
+*.sqlite3
+
+# Flask
+instance/
+*.log
+
+# Node
+node_modules/
+dist/
+
+# Vite
+/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+.DS_Store
