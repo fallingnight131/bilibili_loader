@@ -136,7 +136,7 @@ def get_tasks():
     user_id = int(get_jwt_identity())
     tasks = DownloadTask.query.filter_by(user_id=user_id).order_by(
         DownloadTask.created_at.desc()
-    ).all()
+    ).limit(5).all()
 
     task_list = []
     for t in tasks:
