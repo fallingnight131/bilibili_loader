@@ -1,5 +1,8 @@
 """Flask 应用入口"""
 
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import logging
 from datetime import timedelta
