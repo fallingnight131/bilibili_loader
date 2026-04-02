@@ -95,7 +95,7 @@ def submit_bangumi_download():
 
     # 检查冷却时间
     if quota.last_download_at:
-        elapsed = (now_bjt() - quota.last_download_at).total_seconds()
+        elapsed = (now_bjt().replace(tzinfo=None) - quota.last_download_at).total_seconds()
         if elapsed < Config.BANGUMI_COOLDOWN_SECONDS:
             remaining = int(Config.BANGUMI_COOLDOWN_SECONDS - elapsed)
             return jsonify(code=3, message=f'冷却中，请等待 {remaining} 秒', data={
@@ -290,7 +290,7 @@ def bangumi_quota():
     if quota:
         remaining = max(0, Config.BANGUMI_DAILY_LIMIT - quota.count)
         if quota.last_download_at:
-            elapsed = (now_bjt() - quota.last_download_at).total_seconds()
+            elapsed = (now_bjt().replace(tzinfo=None) - quota.last_download_at).total_seconds()
             if elapsed < Config.BANGUMI_COOLDOWN_SECONDS:
                 cooldown_remaining_seconds = int(Config.BANGUMI_COOLDOWN_SECONDS - elapsed)
 

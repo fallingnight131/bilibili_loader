@@ -46,7 +46,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useDownloadStore } from '../stores/download'
 import { ElMessage } from 'element-plus'
 
@@ -74,6 +74,10 @@ function startCooldownTimer() {
     }, 1000)
   }
 }
+
+watch(() => downloadStore.bangumiQuota.cooldown_remaining_seconds, () => {
+  startCooldownTimer()
+})
 
 onMounted(async () => {
   await downloadStore.fetchBangumiQuota()

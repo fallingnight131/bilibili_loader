@@ -53,11 +53,15 @@ export function initSocket() {
   // 监听任务失败
   socket.on('task_failed', (data) => {
     const downloadStore = useDownloadStore()
+    const task = downloadStore.tasks.find(t => t.id === data.task_id)
     downloadStore.updateTask({
       task_id: data.task_id,
       status: 'failed',
       error_message: data.error_message
     })
+    if (task?.task_type === 'bangumi') {
+      downloadStore.fetchBangumiQuota()
+    }
   })
 }
 

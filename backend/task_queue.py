@@ -135,6 +135,16 @@ def _process_task(task_id, app, socketio):
             # 下载失败
             task.status = 'failed'
             task.error_message = str(e)[:500]
+
+            # 番剧失败时返还配额并重置冷却
+            if task.task_type == 'bangumi':
+                today = now_bjt().date()
+                quota = BangumiQuota.query.filter_by(user_id=user_id, date=today).first()
+                if quota and quota.count > 0:
+                    quota.count -= 1
+                    quota.last_download_at = None
+                    logger.info(f'番剧任务 {task_id} 失败，已返还配额，当前剩余: {quota.count}')
+
             db.session.commit()
 
             socketio.emit('task_failed', {
