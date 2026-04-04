@@ -1,17 +1,26 @@
-"""定时清理过期文件的调度器"""
+"""定时清理过期文件 & 定期校验 Cookie 池的调度器"""
 
 import os
 import logging
 import threading
 import time
+import random
 
 from models import db, DownloadTask, now_bjt
+from cookie_pool import validate_all_cookies
 
 logger = logging.getLogger(__name__)
 
 
+def _next_cookie_check_interval():
+    """返回下一次 cookie 校验间隔（秒），约 3 天 ± 随机偏移"""
+    base = 3 * 24 * 3600  # 3 天
+    jitter = random.randint(-6 * 3600, 6 * 3600)  # ±6 小时
+    return base + jitter
+
+
 def start_scheduler(app, socketio):
-    """启动后台守护线程，每30秒扫描并清理过期文件"""
+    """启动后台守护线程"""
 
     def cleanup_loop():
         logger.info('文件清理调度器已启动')
@@ -19,7 +28,6 @@ def start_scheduler(app, socketio):
             time.sleep(30)
             try:
                 with app.app_context():
-                    # 查找已完成且过期的任务
                     now = now_bjt().replace(tzinfo=None)
                     expired_tasks = DownloadTask.query.filter(
                         DownloadTask.status == 'completed',
@@ -27,7 +35,6 @@ def start_scheduler(app, socketio):
                     ).all()
 
                     for task in expired_tasks:
-                        # 删除物理文件
                         if task.file_path and os.path.exists(task.file_path):
                             try:
                                 os.remove(task.file_path)
@@ -35,11 +42,9 @@ def start_scheduler(app, socketio):
                             except OSError as e:
                                 logger.error(f'删除文件失败: {task.file_path}, 错误: {e}')
 
-                        # 更新状态
                         task.status = 'expired'
                         db.session.commit()
 
-                        # 通知用户
                         room = f'user_{task.user_id}'
                         socketio.emit('task_progress', {
                             'task_id': task.id,
@@ -54,6 +59,23 @@ def start_scheduler(app, socketio):
             except Exception as e:
                 logger.error(f'清理调度器异常: {e}')
 
-    t = threading.Thread(target=cleanup_loop, daemon=True)
-    t.start()
-    return t
+    def cookie_check_loop():
+        logger.info('Cookie 校验调度器已启动')
+        while True:
+            interval = _next_cookie_check_interval()
+            logger.info(f'下次 cookie 校验将在 {interval / 3600:.1f} 小时后')
+            time.sleep(interval)
+            try:
+                with app.app_context():
+                    removed = validate_all_cookies()
+                    logger.info(f'Cookie 定期校验完成，移除 {removed} 个无效 cookie')
+            except Exception as e:
+                logger.error(f'Cookie 校验调度器异常: {e}')
+
+    t1 = threading.Thread(target=cleanup_loop, daemon=True)
+    t1.start()
+
+    t2 = threading.Thread(target=cookie_check_loop, daemon=True)
+    t2.start()
+
+    return t1, t2

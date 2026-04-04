@@ -25,4 +25,3 @@ class Config:
 
     # 番剧限制
     BANGUMI_DAILY_LIMIT = 5
-    BANGUMI_COOLDOWN_SECONDS = 120  # 2分钟冷却

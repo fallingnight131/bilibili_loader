@@ -13,7 +13,7 @@
         type="primary"
         size="large"
         :loading="loading"
-        :disabled="quota.cooldown_remaining_seconds > 0 || (!quota.is_privileged && quota.remaining <= 0)"
+        :disabled="!quota.is_privileged && quota.remaining <= 0"
         @click="handleSubmit"
       >
         下载
@@ -33,10 +33,6 @@
           </el-tag>
         </div>
       </template>
-      <div v-if="cooldownDisplay > 0" class="quota-item cooldown">
-        <span>冷却中：</span>
-        <el-tag type="warning" size="small">{{ cooldownDisplay }}s</el-tag>
-      </div>
     </div>
 
     <div class="tips">
@@ -45,52 +41,24 @@
         <li>EP号：ep259707 或 259707</li>
         <li>链接：https://www.bilibili.com/bangumi/play/ep259707</li>
       </ul>
-      <p class="limit-tip">{{ quota.is_privileged ? '您已拥有无限下载特权（仍受 2 分钟冷却限制）' : `每日限制 ${quota.daily_limit} 次，每次间隔 2 分钟` }}</p>
+      <p class="limit-tip">{{ quota.is_privileged ? '您已拥有无限下载特权' : `每日限制 ${quota.daily_limit} 次` }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useDownloadStore } from '../stores/download'
 import { ElMessage } from 'element-plus'
 
 const downloadStore = useDownloadStore()
 const input = ref('')
 const loading = ref(false)
-const cooldownDisplay = ref(0)
-let cooldownTimer = null
 
 const quota = computed(() => downloadStore.bangumiQuota)
 
-// 冷却时间倒计时
-function startCooldownTimer() {
-  if (cooldownTimer) clearInterval(cooldownTimer)
-  cooldownDisplay.value = quota.value.cooldown_remaining_seconds
-
-  if (cooldownDisplay.value > 0) {
-    cooldownTimer = setInterval(() => {
-      cooldownDisplay.value--
-      if (cooldownDisplay.value <= 0) {
-        clearInterval(cooldownTimer)
-        cooldownTimer = null
-        downloadStore.fetchBangumiQuota()
-      }
-    }, 1000)
-  }
-}
-
-watch(() => downloadStore.bangumiQuota.cooldown_remaining_seconds, () => {
-  startCooldownTimer()
-})
-
 onMounted(async () => {
   await downloadStore.fetchBangumiQuota()
-  startCooldownTimer()
-})
-
-onUnmounted(() => {
-  if (cooldownTimer) clearInterval(cooldownTimer)
 })
 
 async function handleSubmit() {
@@ -104,14 +72,10 @@ async function handleSubmit() {
     const result = await downloadStore.submitBangumi(input.value.trim())
     ElMessage.success(`任务已提交，队列位置: ${result.queue_position}`)
     input.value = ''
-    // 刷新配额并重置冷却
     await downloadStore.fetchBangumiQuota()
-    startCooldownTimer()
   } catch (e) {
     ElMessage.error(e.message || '提交失败')
-    // 如果是冷却错误，也刷新配额
     await downloadStore.fetchBangumiQuota()
-    startCooldownTimer()
   } finally {
     loading.value = false
   }
@@ -151,10 +115,6 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.cooldown {
-  color: #E6A23C;
 }
 
 .tips {

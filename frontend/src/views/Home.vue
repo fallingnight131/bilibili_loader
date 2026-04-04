@@ -31,7 +31,7 @@
           />
         </el-form-item>
       </el-form>
-      <p class="settings-tip">提交后将更新后端凭据，您将获得番剧下载次数无限的特权，直到凭据被其他用户更新。</p>
+      <p class="settings-tip">提交后系统将校验 cookie 合法性（需要大会员账号），校验通过后加入 cookie 池，您将获得番剧下载次数无限的特权。每个账号每 2 分钟只能提交一次。</p>
       <template #footer>
         <el-button @click="showSettingsDialog = false">取消</el-button>
         <el-button type="primary" :loading="settingsLoading" @click="handleUpdateCredentials">保存</el-button>

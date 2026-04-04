@@ -66,3 +66,15 @@ class CookieSettingCooldown(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
     last_set_at = db.Column(db.DateTime, nullable=False, default=now_bjt)
+
+
+class CookieEntry(db.Model):
+    """Cookie 池条目"""
+    __tablename__ = 'cookie_pool'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    sessdata = db.Column(db.Text, nullable=False)
+    bili_jct = db.Column(db.String(64), nullable=False, unique=True)
+    added_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    added_at = db.Column(db.DateTime, default=now_bjt)
+    last_validated_at = db.Column(db.DateTime, default=now_bjt)

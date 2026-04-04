@@ -6,7 +6,7 @@ from flask_jwt_extended import decode_token
 
 logger = logging.getLogger(__name__)
 
-socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
+socketio = SocketIO(cors_allowed_origins="*", async_mode='gevent')
 
 
 @socketio.on('connect')

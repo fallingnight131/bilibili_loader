@@ -4,5 +4,6 @@ flask-jwt-extended
 flask-socketio
 flask-cors
 requests
-eventlet
+gevent
+gevent-websocket
 python-dotenv

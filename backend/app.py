@@ -1,7 +1,7 @@
 """Flask 应用入口"""
 
-import eventlet
-eventlet.monkey_patch()
+from gevent import monkey
+monkey.patch_all()
 
 import os
 import logging
@@ -16,7 +16,7 @@ from models import db
 from auth import auth_bp
 from routes import download_bp, init_routes
 from websocket import socketio
-from task_queue import start_worker
+from cookie_pool import init_cookie_pool
 from scheduler import start_scheduler
 
 # 配置日志
@@ -53,8 +53,8 @@ def create_app():
         db.create_all()
         os.makedirs(Config.DOWNLOAD_DIR, exist_ok=True)
 
-    # 启动 worker 线程
-    start_worker()
+    # 初始化 Cookie 池（从数据库加载 cookie 并启动 per-cookie worker）
+    init_cookie_pool(app, socketio)
 
     # 启动文件清理调度器
     start_scheduler(app, socketio)
@@ -65,4 +65,4 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5001, debug=True, use_reloader=False)

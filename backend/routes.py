@@ -6,33 +6,29 @@ import os
 import time
 from datetime import timedelta
 
-from flask import Blueprint, request, jsonify, send_file, current_app
+from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from models import db, DownloadTask, BangumiQuota, CookieSettingCooldown, now_bjt
 from downloader import parse_bvid, parse_ep_id, validate_bili_cookie
-from task_queue import submit_task, get_queue_status
+from cookie_pool import submit_task, get_queue_status, add_cookie, pool_size
 from config import Config
 
 # 短效下载 token 存储：{token: (task_id, user_id, expire_timestamp)}
 _download_tokens: dict = {}
 
-# 提供凭据的特权用户 ID（无限番剧下载）
-_privileged_user_id: int | None = None
+# 提供过合法 cookie 的特权用户 ID 集合（无限番剧下载）
+_privileged_users: set[int] = set()
 
 logger = logging.getLogger(__name__)
 download_bp = Blueprint('download', __name__, url_prefix='/api/download')
-
-# socketio 实例将在 app.py 中注入
-_socketio = None
 
 COOKIE_SETTING_COOLDOWN_SECONDS = 120
 
 
 def init_routes(socketio):
-    """注入 socketio 实例"""
-    global _socketio
-    _socketio = socketio
+    """注入 socketio 实例（保留接口兼容）"""
+    pass
 
 
 @download_bp.route('/video', methods=['POST'])
@@ -62,7 +58,7 @@ def submit_video_download():
     db.session.commit()
 
     # 提交到队列
-    position = submit_task(task_id, current_app._get_current_object(), _socketio)
+    position = submit_task(task_id)
 
     logger.info(f'用户 {user_id} 提交视频下载任务: {bvid}, task_id={task_id}')
     return jsonify(code=0, message='任务已提交', data={
@@ -94,21 +90,12 @@ def submit_bangumi_download():
         db.session.add(quota)
         db.session.commit()
 
-    # 特权用户仅跳过每日次数限制，不跳过冷却
-    is_privileged = (_privileged_user_id is not None and user_id == _privileged_user_id)
+    # 特权用户跳过每日次数限制
+    is_privileged = user_id in _privileged_users
 
     # 检查每日上限
     if not is_privileged and quota.count >= Config.BANGUMI_DAILY_LIMIT:
         return jsonify(code=2, message='今日番剧下载次数已用完，请明天再试'), 429
-
-    # 检查冷却时间（特权用户同样受冷却限制）
-    if quota.last_download_at:
-        elapsed = (now_bjt().replace(tzinfo=None) - quota.last_download_at).total_seconds()
-        if elapsed < Config.BANGUMI_COOLDOWN_SECONDS:
-            remaining = int(Config.BANGUMI_COOLDOWN_SECONDS - elapsed)
-            return jsonify(code=3, message=f'冷却中，请等待 {remaining} 秒', data={
-                'cooldown_remaining_seconds': remaining
-            }), 429
 
     # 更新配额
     quota.count += 1
@@ -128,7 +115,7 @@ def submit_bangumi_download():
     db.session.commit()
 
     # 提交到队列
-    position = submit_task(task_id, current_app._get_current_object(), _socketio)
+    position = submit_task(task_id)
 
     logger.info(f'用户 {user_id} 提交番剧下载任务: ep{ep_id}, task_id={task_id}')
     return jsonify(code=0, message='任务已提交', data={
@@ -287,36 +274,30 @@ def queue_status():
 @download_bp.route('/bangumi-quota', methods=['GET'])
 @jwt_required()
 def bangumi_quota():
-    """获取当前用户今日番剧下载剩余次数和冷却时间"""
+    """获取当前用户今日番剧下载剩余次数"""
     user_id = int(get_jwt_identity())
     today = now_bjt().date()
     quota = BangumiQuota.query.filter_by(user_id=user_id, date=today).first()
 
     remaining = Config.BANGUMI_DAILY_LIMIT
-    cooldown_remaining_seconds = 0
 
     if quota:
         remaining = max(0, Config.BANGUMI_DAILY_LIMIT - quota.count)
-        if quota.last_download_at:
-            elapsed = (now_bjt().replace(tzinfo=None) - quota.last_download_at).total_seconds()
-            if elapsed < Config.BANGUMI_COOLDOWN_SECONDS:
-                cooldown_remaining_seconds = int(Config.BANGUMI_COOLDOWN_SECONDS - elapsed)
 
-    is_privileged = (_privileged_user_id is not None and user_id == _privileged_user_id)
+    is_privileged = user_id in _privileged_users
 
     return jsonify(code=0, message='success', data={
         'remaining': -1 if is_privileged else remaining,
         'daily_limit': Config.BANGUMI_DAILY_LIMIT,
-        'cooldown_remaining_seconds': cooldown_remaining_seconds,
-        'is_privileged': is_privileged
+        'is_privileged': is_privileged,
+        'pool_size': pool_size()
     })
 
 
 @download_bp.route('/settings/bili-credentials', methods=['POST'])
 @jwt_required()
 def update_bili_credentials():
-    """更新 B站凭据并授予特权"""
-    global _privileged_user_id
+    """添加 B站凭据到 cookie 池并授予特权"""
     user_id = int(get_jwt_identity())
     data = request.get_json()
     if not data:
@@ -337,18 +318,18 @@ def update_bili_credentials():
             remaining = int(COOKIE_SETTING_COOLDOWN_SECONDS - elapsed)
             return jsonify(code=4, message=f'设置过于频繁，请在 {remaining} 秒后重试'), 429
 
-    # 先校验新 cookie，失败则不更新全局配置，也不授予特权
+    # 校验新 cookie
     ok, reason = validate_bili_cookie(sessdata, jct, '293024')
     if not ok:
         return jsonify(code=5, message=f'新 cookie 校验失败：{reason}'), 400
 
-    # 更新运行时配置
-    Config.BILI_SESSDATA = sessdata
-    Config.BILI_JCT = jct
+    # 加入 cookie 池（去重）
+    added, add_msg = add_cookie(sessdata, jct, user_id)
 
     # 授予该用户无限番剧下载特权
-    _privileged_user_id = user_id
+    _privileged_users.add(user_id)
 
+    # 记录冷却
     if not cooldown:
         cooldown = CookieSettingCooldown(user_id=user_id, last_set_at=now_bjt())
         db.session.add(cooldown)
@@ -356,5 +337,10 @@ def update_bili_credentials():
         cooldown.last_set_at = now_bjt()
     db.session.commit()
 
-    logger.info(f'用户 {user_id} 更新了 B站凭据并通过校验，获得无限番剧下载特权')
-    return jsonify(code=0, message='新 cookie 校验通过，凭据已更新，您已获得无限番剧下载特权')
+    if added:
+        msg = f'Cookie 校验通过并已加入池（当前池大小: {pool_size()}），您已获得无限番剧下载特权'
+    else:
+        msg = f'Cookie 校验通过（{add_msg}），您已获得无限番剧下载特权'
+
+    logger.info(f'用户 {user_id} 提交 cookie, added={added}, 池大小={pool_size()}')
+    return jsonify(code=0, message=msg)
