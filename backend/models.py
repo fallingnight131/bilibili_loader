@@ -57,3 +57,12 @@ class BangumiQuota(db.Model):
     __table_args__ = (
         db.UniqueConstraint('user_id', 'date', name='uq_user_date'),
     )
+
+
+class CookieSettingCooldown(db.Model):
+    """用户设置 cookie 冷却记录表"""
+    __tablename__ = 'cookie_setting_cooldown'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
+    last_set_at = db.Column(db.DateTime, nullable=False, default=now_bjt)

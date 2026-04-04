@@ -9,8 +9,8 @@ from datetime import timedelta
 from flask import Blueprint, request, jsonify, send_file, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from models import db, DownloadTask, BangumiQuota, now_bjt
-from downloader import parse_bvid, parse_ep_id
+from models import db, DownloadTask, BangumiQuota, CookieSettingCooldown, now_bjt
+from downloader import parse_bvid, parse_ep_id, validate_bili_cookie
 from task_queue import submit_task, get_queue_status
 from config import Config
 
@@ -25,6 +25,8 @@ download_bp = Blueprint('download', __name__, url_prefix='/api/download')
 
 # socketio 实例将在 app.py 中注入
 _socketio = None
+
+COOKIE_SETTING_COOLDOWN_SECONDS = 120
 
 
 def init_routes(socketio):
@@ -326,6 +328,20 @@ def update_bili_credentials():
     if not sessdata or not jct:
         return jsonify(code=1, message='SESSDATA 和 JCT 不能为空'), 400
 
+    # 每个账号设置 cookie 冷却 2 分钟
+    cooldown = CookieSettingCooldown.query.filter_by(user_id=user_id).first()
+    now = now_bjt().replace(tzinfo=None)
+    if cooldown and cooldown.last_set_at:
+        elapsed = (now - cooldown.last_set_at).total_seconds()
+        if elapsed < COOKIE_SETTING_COOLDOWN_SECONDS:
+            remaining = int(COOKIE_SETTING_COOLDOWN_SECONDS - elapsed)
+            return jsonify(code=4, message=f'设置过于频繁，请在 {remaining} 秒后重试'), 429
+
+    # 先校验新 cookie，失败则不更新全局配置，也不授予特权
+    ok, reason = validate_bili_cookie(sessdata, jct, '293024')
+    if not ok:
+        return jsonify(code=5, message=f'新 cookie 校验失败：{reason}'), 400
+
     # 更新运行时配置
     Config.BILI_SESSDATA = sessdata
     Config.BILI_JCT = jct
@@ -333,5 +349,12 @@ def update_bili_credentials():
     # 授予该用户无限番剧下载特权
     _privileged_user_id = user_id
 
-    logger.info(f'用户 {user_id} 更新了 B站凭据，获得无限番剧下载特权')
-    return jsonify(code=0, message='凭据已更新，您已获得无限番剧下载特权')
+    if not cooldown:
+        cooldown = CookieSettingCooldown(user_id=user_id, last_set_at=now_bjt())
+        db.session.add(cooldown)
+    else:
+        cooldown.last_set_at = now_bjt()
+    db.session.commit()
+
+    logger.info(f'用户 {user_id} 更新了 B站凭据并通过校验，获得无限番剧下载特权')
+    return jsonify(code=0, message='新 cookie 校验通过，凭据已更新，您已获得无限番剧下载特权')
