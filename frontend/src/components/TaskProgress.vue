@@ -19,6 +19,13 @@
       style="margin-top: 12px;"
     />
 
+    <!-- 取消按钮（进行中的任务） -->
+    <div v-if="canCancel" class="task-actions" style="margin-top: 8px;">
+      <el-button type="danger" size="small" plain :loading="cancelling" @click="handleCancel">
+        取消下载
+      </el-button>
+    </div>
+
     <!-- 已完成：下载按钮 + 倒计时 -->
     <div v-if="task.status === 'completed'" class="task-completed">
       <el-button type="primary" size="small" :loading="downloading" @click="handleDownload">
@@ -37,6 +44,11 @@
     <!-- 已失败：错误信息 -->
     <div v-if="task.status === 'failed'" class="task-error">
       {{ task.error_message || '下载失败' }}
+    </div>
+
+    <!-- 已取消 -->
+    <div v-if="task.status === 'cancelled'" class="task-cancelled">
+      已取消下载
     </div>
 
     <!-- 已过期 -->
@@ -62,6 +74,19 @@ const props = defineProps({
 
 const downloadStore = useDownloadStore()
 const downloading = ref(false)
+const cancelling = ref(false)
+
+async function handleCancel() {
+  cancelling.value = true
+  try {
+    await downloadStore.cancelTask(props.task.id)
+    ElMessage.success('取消请求已提交')
+  } catch (e) {
+    ElMessage.error(e.message || '取消失败')
+  } finally {
+    cancelling.value = false
+  }
+}
 
 async function handleDownload() {
   downloading.value = true
@@ -83,6 +108,7 @@ const statusMap = {
   merging: '合并中',
   completed: '已完成',
   failed: '已失败',
+  cancelled: '已取消',
   expired: '已过期'
 }
 
@@ -97,6 +123,10 @@ const statusClass = computed(() => `status-text-${props.task.status}`)
 
 const showProgress = computed(() =>
   ['downloading', 'merging', 'queued', 'pending'].includes(props.task.status)
+)
+
+const canCancel = computed(() =>
+  ['pending', 'queued', 'downloading', 'merging'].includes(props.task.status)
 )
 
 const progressStatus = computed(() => {
@@ -177,6 +207,10 @@ function onExpired() {
   color: #F56C6C;
 }
 
+.status-text-cancelled {
+  color: #E6A23C;
+}
+
 .status-text-expired {
   color: #C0C4CC;
 }
@@ -200,6 +234,12 @@ function onExpired() {
 .task-error {
   margin-top: 8px;
   color: #F56C6C;
+  font-size: 13px;
+}
+
+.task-cancelled {
+  margin-top: 8px;
+  color: #E6A23C;
   font-size: 13px;
 }
 

@@ -11,6 +11,12 @@ from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
+
+class DownloadCancelled(Exception):
+    """下载被用户取消"""
+    pass
+
+
 # WBI 混淆表（官方固定映射）
 MIXIN_KEY_ENC_TAB = [
     46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49,
@@ -20,12 +26,12 @@ MIXIN_KEY_ENC_TAB = [
 ]
 
 
-def _build_headers(sessdata, bili_jct):
+def _build_headers(sessdata, bili_jct, user_agent=None):
     """构建请求头"""
     return {
         "referer": "https://www.bilibili.com/",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                       "(KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+        "user-agent": user_agent or ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"),
         "Cookie": f"SESSDATA={sessdata}; bili_jct={bili_jct}"
     }
 
@@ -174,23 +180,29 @@ def validate_bili_cookie(sessdata, bili_jct, test_ep_id='293024'):
     return True, 'ok'
 
 
-def download_stream(url, filename, headers, progress_callback=None):
-    """流式下载，支持进度回调与自动重试"""
+def download_stream(url, filename, headers, progress_callback=None, cancel_check=None):
+    """流式下载，支持进度回调、取消检查与自动重试"""
     max_retries = 5
     for i in range(max_retries):
         try:
+            if cancel_check and cancel_check():
+                raise DownloadCancelled('下载已取消')
             with requests.get(url, headers=headers, stream=True, timeout=30) as r:
                 r.raise_for_status()
                 total_size = int(r.headers.get('content-length', 0))
                 done = 0
                 with open(filename, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=1024 * 512):
+                        if cancel_check and cancel_check():
+                            raise DownloadCancelled('下载已取消')
                         if chunk:
                             f.write(chunk)
                             done += len(chunk)
                             if progress_callback and total_size:
                                 progress_callback(done / total_size * 100)
             return
+        except DownloadCancelled:
+            raise
         except (requests.exceptions.RequestException, Exception) as e:
             logger.warning(f'下载第 {i+1} 次失败: {e}')
             time.sleep(2)
@@ -204,12 +216,12 @@ def merge_av(video_path, audio_path, output_path):
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
 
 
-def download_video(bvid, download_dir, quality, sessdata, bili_jct, progress_callback=None):
+def download_video(bvid, download_dir, quality, sessdata, bili_jct, progress_callback=None, user_agent=None, cancel_check=None):
     """
     完整的视频下载流程
     progress_callback(progress_percent, status_message)
     """
-    headers = _build_headers(sessdata, bili_jct)
+    headers = _build_headers(sessdata, bili_jct, user_agent)
 
     # 获取 WBI 密钥
     img_key, sub_key = get_wbi_keys(headers)
@@ -234,15 +246,17 @@ def download_video(bvid, download_dir, quality, sessdata, bili_jct, progress_cal
         def video_progress(pct):
             if progress_callback:
                 progress_callback(int(pct * 0.45), '正在下载视频流')
-        download_stream(v_url, v_temp, headers, video_progress)
+        download_stream(v_url, v_temp, headers, video_progress, cancel_check)
 
         # 下载音频流 45-90%
         def audio_progress(pct):
             if progress_callback:
                 progress_callback(45 + int(pct * 0.45), '正在下载音频流')
-        download_stream(a_url, a_temp, headers, audio_progress)
+        download_stream(a_url, a_temp, headers, audio_progress, cancel_check)
 
         # 合并 90-100%
+        if cancel_check and cancel_check():
+            raise DownloadCancelled('下载已取消')
         if progress_callback:
             progress_callback(90, '正在合并音视频')
         merge_av(v_temp, a_temp, final_mp4)
@@ -260,12 +274,12 @@ def download_video(bvid, download_dir, quality, sessdata, bili_jct, progress_cal
                 os.remove(f)
 
 
-def download_bangumi(ep_id, download_dir, quality, sessdata, bili_jct, progress_callback=None):
+def download_bangumi(ep_id, download_dir, quality, sessdata, bili_jct, progress_callback=None, user_agent=None, cancel_check=None):
     """
     完整的番剧下载流程
     progress_callback(progress_percent, status_message)
     """
-    headers = _build_headers(sessdata, bili_jct)
+    headers = _build_headers(sessdata, bili_jct, user_agent)
 
     # 获取 WBI 密钥
     img_key, sub_key = get_wbi_keys(headers)
@@ -290,15 +304,17 @@ def download_bangumi(ep_id, download_dir, quality, sessdata, bili_jct, progress_
         def video_progress(pct):
             if progress_callback:
                 progress_callback(int(pct * 0.45), '正在下载视频流')
-        download_stream(v_url, v_temp, headers, video_progress)
+        download_stream(v_url, v_temp, headers, video_progress, cancel_check)
 
         # 下载音频流 45-90%
         def audio_progress(pct):
             if progress_callback:
                 progress_callback(45 + int(pct * 0.45), '正在下载音频流')
-        download_stream(a_url, a_temp, headers, audio_progress)
+        download_stream(a_url, a_temp, headers, audio_progress, cancel_check)
 
         # 合并 90-100%
+        if cancel_check and cancel_check():
+            raise DownloadCancelled('下载已取消')
         if progress_callback:
             progress_callback(90, '正在合并音视频')
         merge_av(v_temp, a_temp, final_mp4)

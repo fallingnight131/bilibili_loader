@@ -11,14 +11,11 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from models import db, DownloadTask, BangumiQuota, CookieSettingCooldown, now_bjt
 from downloader import parse_bvid, parse_ep_id, validate_bili_cookie
-from cookie_pool import submit_task, get_queue_status, add_cookie, pool_size
+from cookie_pool import submit_task, get_queue_status, add_cookie, pool_size, is_privileged, cancel_task
 from config import Config
 
 # 短效下载 token 存储：{token: (task_id, user_id, expire_timestamp)}
 _download_tokens: dict = {}
-
-# 提供过合法 cookie 的特权用户 ID 集合（无限番剧下载）
-_privileged_users: set[int] = set()
 
 logger = logging.getLogger(__name__)
 download_bp = Blueprint('download', __name__, url_prefix='/api/download')
@@ -91,10 +88,10 @@ def submit_bangumi_download():
         db.session.commit()
 
     # 特权用户跳过每日次数限制
-    is_privileged = user_id in _privileged_users
+    is_priv = is_privileged(user_id)
 
     # 检查每日上限
-    if not is_privileged and quota.count >= Config.BANGUMI_DAILY_LIMIT:
+    if not is_priv and quota.count >= Config.BANGUMI_DAILY_LIMIT:
         return jsonify(code=2, message='今日番剧下载次数已用完，请明天再试'), 429
 
     # 更新配额
@@ -271,6 +268,36 @@ def queue_status():
     return jsonify(code=0, message='success', data=get_queue_status())
 
 
+@download_bp.route('/tasks/<task_id>/cancel', methods=['POST'])
+@jwt_required()
+def cancel_task_endpoint(task_id):
+    """取消下载任务"""
+    user_id = int(get_jwt_identity())
+    task = DownloadTask.query.get(task_id)
+
+    if not task or task.user_id != user_id:
+        return jsonify(code=1, message='任务不存在'), 404
+
+    if task.status in ('completed', 'failed', 'expired', 'cancelled'):
+        return jsonify(code=1, message='任务已结束，无法取消'), 400
+
+    cancel_task(task_id)
+
+    # 如果任务还在 pending/queued 状态，直接标记取消
+    if task.status in ('pending', 'queued'):
+        task.status = 'cancelled'
+        task.error_message = '已取消下载'
+        # 返还番剧配额
+        if task.task_type == 'bangumi':
+            today = now_bjt().date()
+            quota_obj = BangumiQuota.query.filter_by(user_id=user_id, date=today).first()
+            if quota_obj and quota_obj.count > 0:
+                quota_obj.count -= 1
+        db.session.commit()
+
+    return jsonify(code=0, message='任务取消请求已提交')
+
+
 @download_bp.route('/bangumi-quota', methods=['GET'])
 @jwt_required()
 def bangumi_quota():
@@ -284,12 +311,12 @@ def bangumi_quota():
     if quota:
         remaining = max(0, Config.BANGUMI_DAILY_LIMIT - quota.count)
 
-    is_privileged = user_id in _privileged_users
+    is_priv = is_privileged(user_id)
 
     return jsonify(code=0, message='success', data={
-        'remaining': -1 if is_privileged else remaining,
+        'remaining': -1 if is_priv else remaining,
         'daily_limit': Config.BANGUMI_DAILY_LIMIT,
-        'is_privileged': is_privileged,
+        'is_privileged': is_priv,
         'pool_size': pool_size()
     })
 
@@ -323,11 +350,8 @@ def update_bili_credentials():
     if not ok:
         return jsonify(code=5, message=f'新 cookie 校验失败：{reason}'), 400
 
-    # 加入 cookie 池（去重）
+    # 加入 cookie 池（去重）—— add_cookie 内部会自动管理特权
     added, add_msg = add_cookie(sessdata, jct, user_id)
-
-    # 授予该用户无限番剧下载特权
-    _privileged_users.add(user_id)
 
     # 记录冷却
     if not cooldown:

@@ -9,15 +9,16 @@ import random
 import threading
 import logging
 import time
+import os
 from datetime import timedelta
 
 from models import db, CookieEntry, DownloadTask, BangumiQuota, now_bjt
-from downloader import download_video, download_bangumi, validate_bili_cookie
+from downloader import download_video, download_bangumi, validate_bili_cookie, DownloadCancelled
 from config import Config
 
 logger = logging.getLogger(__name__)
 
-# cookie_id -> { 'sessdata', 'bili_jct', 'queue', 'thread', 'last_task_time' }
+# cookie_id -> { 'sessdata', 'bili_jct', 'queue', 'thread', 'last_task_time', 'user_agent' }
 _workers: dict[int, dict] = {}
 _workers_lock = threading.Lock()
 
@@ -25,12 +26,35 @@ _workers_lock = threading.Lock()
 _queue_tasks: list[str] = []
 _queue_lock = threading.Lock()
 
+# 已取消的任务 ID 集合
+_cancelled_tasks: set[str] = set()
+_cancelled_lock = threading.Lock()
+
+# 提供过合法 cookie 的特权用户 ID 集合（无限番剧下载）
+_privileged_users: set[int] = set()
+_privileged_lock = threading.Lock()
+
 # 每个 cookie 两次任务之间的最小间隔（秒）
 PER_COOKIE_INTERVAL = 2
 
 # app & socketio 引用
 _app = None
 _socketio = None
+
+# User-Agent 模板列表
+_UA_TEMPLATES = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{ver}.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{ver}.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{ver}.0.0.0 Safari/537.36 Edg/{ver}.0.0.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{ver}.0.0.0 Safari/537.36",
+]
+
+
+def _generate_user_agent(cookie_id):
+    """为每个 cookie 生成唯一的 User-Agent"""
+    template = _UA_TEMPLATES[cookie_id % len(_UA_TEMPLATES)]
+    chrome_ver = 120 + (cookie_id * 7) % 17  # 120-136
+    return template.format(ver=chrome_ver)
 
 
 def init_cookie_pool(app, socketio):
@@ -43,7 +67,11 @@ def init_cookie_pool(app, socketio):
         entries = CookieEntry.query.all()
         for entry in entries:
             _ensure_worker(entry.id, entry.sessdata, entry.bili_jct)
-        logger.info(f'Cookie 池已加载 {len(entries)} 个 cookie')
+            # 初始化特权用户集合（user_id=0 是系统添加，不授予特权）
+            if entry.added_by_user_id and entry.added_by_user_id > 0:
+                with _privileged_lock:
+                    _privileged_users.add(entry.added_by_user_id)
+        logger.info(f'Cookie 池已加载 {len(entries)} 个 cookie，特权用户: {_privileged_users}')
 
     # 如果池为空但 .env 有初始 cookie，自动加入池
     if not entries and Config.BILI_SESSDATA and Config.BILI_JCT:
@@ -66,17 +94,19 @@ def _ensure_worker(cookie_id, sessdata, bili_jct):
         if cookie_id in _workers:
             return
         q = queue.Queue()
+        ua = _generate_user_agent(cookie_id)
         info = {
             'sessdata': sessdata,
             'bili_jct': bili_jct,
             'queue': q,
             'last_task_time': 0.0,
+            'user_agent': ua,
         }
         t = threading.Thread(target=_cookie_worker, args=(cookie_id, info), daemon=True)
         info['thread'] = t
         _workers[cookie_id] = info
         t.start()
-        logger.info(f'Cookie worker 已启动: cookie_id={cookie_id}')
+        logger.info(f'Cookie worker 已启动: cookie_id={cookie_id}, UA={ua[:60]}...')
 
 
 def _cookie_worker(cookie_id, info):
@@ -111,6 +141,9 @@ def add_cookie(sessdata, bili_jct, user_id):
     # 检查 bili_jct 是否已存在
     existing = CookieEntry.query.filter_by(bili_jct=bili_jct).first()
     if existing:
+        # cookie 已存在，但仍授予用户特权
+        with _privileged_lock:
+            _privileged_users.add(user_id)
         return False, '该 cookie 已存在于 cookie 池中'
 
     entry = CookieEntry(sessdata=sessdata, bili_jct=bili_jct, added_by_user_id=user_id)
@@ -118,13 +151,16 @@ def add_cookie(sessdata, bili_jct, user_id):
     db.session.commit()
 
     _ensure_worker(entry.id, sessdata, bili_jct)
+    with _privileged_lock:
+        _privileged_users.add(user_id)
     logger.info(f'用户 {user_id} 添加 cookie 到池, id={entry.id}, 池大小={pool_size()}')
     return True, 'cookie 已加入池'
 
 
 def remove_cookie(cookie_id):
-    """从池中移除 cookie"""
+    """从池中移除 cookie，并检查是否需要撤销对应用户的特权"""
     entry = CookieEntry.query.get(cookie_id)
+    removed_user_id = entry.added_by_user_id if entry else None
     if entry:
         db.session.delete(entry)
         db.session.commit()
@@ -132,6 +168,14 @@ def remove_cookie(cookie_id):
         worker = _workers.pop(cookie_id, None)
         if worker:
             logger.info(f'已移除 cookie worker: cookie_id={cookie_id}')
+
+    # 检查该用户是否还有其他 cookie 在池中，若无则撤销特权
+    if removed_user_id and removed_user_id > 0:
+        remaining = CookieEntry.query.filter_by(added_by_user_id=removed_user_id).count()
+        if remaining == 0:
+            with _privileged_lock:
+                _privileged_users.discard(removed_user_id)
+            logger.info(f'用户 {removed_user_id} 的所有 cookie 已失效，已撤销特权')
 
 
 def get_all_cookies():
@@ -141,21 +185,46 @@ def get_all_cookies():
 
 
 def _pick_random_cookie():
-    """随机挑选一个 cookie，返回 (cookie_id, sessdata, bili_jct) 或 None"""
+    """随机挑选一个 cookie，返回 (cookie_id, sessdata, bili_jct, user_agent) 或 None"""
     with _workers_lock:
         if not _workers:
             return None
         cid = random.choice(list(_workers.keys()))
         w = _workers[cid]
-        return cid, w['sessdata'], w['bili_jct']
+        return cid, w['sessdata'], w['bili_jct'], w['user_agent']
 
 
 def _pick_all_cookies_shuffled():
     """返回打乱顺序的所有 cookie 列表"""
     with _workers_lock:
-        items = [(cid, w['sessdata'], w['bili_jct']) for cid, w in _workers.items()]
+        items = [(cid, w['sessdata'], w['bili_jct'], w['user_agent']) for cid, w in _workers.items()]
     random.shuffle(items)
     return items
+
+
+def is_privileged(user_id):
+    """检查用户是否拥有特权（提供过合法 cookie）"""
+    with _privileged_lock:
+        return user_id in _privileged_users
+
+
+def cancel_task(task_id):
+    """标记任务为已取消"""
+    with _cancelled_lock:
+        _cancelled_tasks.add(task_id)
+    logger.info(f'任务 {task_id} 已被标记为取消')
+
+
+def is_task_cancelled(task_id):
+    """检查任务是否已被取消"""
+    with _cancelled_lock:
+        return task_id in _cancelled_tasks
+
+
+def _clear_cancelled(task_id):
+    """清除取消标记"""
+    with _cancelled_lock:
+        _cancelled_tasks.discard(task_id)
 
 
 # --------------- 任务分发 ---------------
@@ -222,6 +291,15 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
             _remove_from_queue(task_id)
             return
 
+        # 检查是否已被取消
+        if is_task_cancelled(task_id):
+            task.status = 'cancelled'
+            task.error_message = '任务已取消'
+            db.session.commit()
+            _remove_from_queue(task_id)
+            _clear_cancelled(task_id)
+            return
+
         user_id = task.user_id
         room = f'user_{user_id}'
 
@@ -246,14 +324,21 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
                 }, room=room)
             return progress_callback
 
+        def cancel_check():
+            return is_task_cancelled(task_id)
+
+        # 获取主 cookie 的 user_agent
+        with _workers_lock:
+            primary_ua = _workers.get(primary_cookie_id, {}).get('user_agent')
+
         # 构建 cookie 尝试顺序：主 cookie 在前，其余随机
-        cookies_to_try = [(primary_cookie_id, sessdata, bili_jct)]
-        for cid, sd, jct in _pick_all_cookies_shuffled():
+        cookies_to_try = [(primary_cookie_id, sessdata, bili_jct, primary_ua)]
+        for cid, sd, jct, ua in _pick_all_cookies_shuffled():
             if cid != primary_cookie_id:
-                cookies_to_try.append((cid, sd, jct))
+                cookies_to_try.append((cid, sd, jct, ua))
 
         last_error = None
-        for cid, sd, jct in cookies_to_try:
+        for cid, sd, jct, ua in cookies_to_try:
             try:
                 # 重置进度
                 task.progress = 0
@@ -264,13 +349,15 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
                     title, file_path, file_size = download_video(
                         task.target_id, Config.DOWNLOAD_DIR,
                         Config.DOWNLOAD_QUALITY, sd, jct,
-                        make_progress_callback(task)
+                        make_progress_callback(task),
+                        user_agent=ua, cancel_check=cancel_check
                     )
                 else:
                     title, file_path, file_size = download_bangumi(
                         task.target_id, Config.DOWNLOAD_DIR,
                         Config.DOWNLOAD_QUALITY, sd, jct,
-                        make_progress_callback(task)
+                        make_progress_callback(task),
+                        user_agent=ua, cancel_check=cancel_check
                     )
 
                 # 下载成功
@@ -292,9 +379,41 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
                 logger.info(f'任务 {task_id} 用 cookie {cid} 下载成功: {title}')
                 return  # 成功，结束
 
+            except DownloadCancelled:
+                # 用户取消，清理并退出
+                task.status = 'cancelled'
+                task.error_message = '已取消下载'
+                # 返还番剧配额
+                if task.task_type == 'bangumi':
+                    today = now_bjt().date()
+                    quota_obj = BangumiQuota.query.filter_by(user_id=user_id, date=today).first()
+                    if quota_obj and quota_obj.count > 0:
+                        quota_obj.count -= 1
+                db.session.commit()
+                _clear_cancelled(task_id)
+
+                _socketio.emit('task_progress', {
+                    'task_id': task_id,
+                    'progress': 0,
+                    'status': 'cancelled',
+                    'message': '已取消下载'
+                }, room=room)
+                logger.info(f'任务 {task_id} 已被用户取消')
+                return
+
             except Exception as e:
                 last_error = e
-                logger.warning(f'任务 {task_id} 用 cookie {cid} 失败: {e}，尝试下一个...')
+                logger.warning(f'任务 {task_id} 用 cookie {cid} 失败: {e}，校验该 cookie...')
+
+                # 立即校验失败的 cookie 是否仍然有效
+                try:
+                    ok, reason = validate_bili_cookie(sd, jct, '293024')
+                    if not ok:
+                        logger.warning(f'Cookie {cid} 校验失败: {reason}，移除该 cookie')
+                        remove_cookie(cid)
+                except Exception as ve:
+                    logger.error(f'校验 cookie {cid} 时异常: {ve}')
+
                 continue
 
         # 所有 cookie 都失败

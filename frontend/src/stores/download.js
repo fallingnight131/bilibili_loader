@@ -76,10 +76,20 @@ export const useDownloadStore = defineStore('download', () => {
     return `/api/download/file/${taskId}`
   }
 
+  // 取消下载任务
+  async function cancelTask(taskId) {
+    const res = await api.post(`/api/download/tasks/${taskId}/cancel`)
+    if (res.data.code === 0) {
+      await fetchTasks()
+      return res.data
+    }
+    throw new Error(res.data.message)
+  }
+
   return {
     tasks, queueStatus, bangumiQuota,
     fetchTasks, submitVideo, submitBangumi,
     fetchQueueStatus, fetchBangumiQuota,
-    updateTask, updateQueueStatus, getFileUrl
+    updateTask, updateQueueStatus, getFileUrl, cancelTask
   }
 })
