@@ -13,7 +13,7 @@
         type="primary"
         size="large"
         :loading="loading"
-        :disabled="quota.cooldown_remaining_seconds > 0 || quota.remaining <= 0"
+        :disabled="quota.cooldown_remaining_seconds > 0 || (!quota.is_privileged && quota.remaining <= 0)"
         @click="handleSubmit"
       >
         下载
@@ -22,12 +22,17 @@
 
     <!-- 配额信息 -->
     <div class="quota-info">
-      <div class="quota-item">
-        <span>今日剩余次数：</span>
-        <el-tag :type="quota.remaining > 0 ? 'success' : 'danger'" size="small">
-          {{ quota.remaining }} / {{ quota.daily_limit }}
-        </el-tag>
+      <div class="quota-item" v-if="quota.is_privileged">
+        <el-tag type="success" size="small">无限下载特权</el-tag>
       </div>
+      <template v-if="!quota.is_privileged">
+        <div class="quota-item">
+          <span>今日剩余次数：</span>
+          <el-tag :type="quota.remaining > 0 ? 'success' : 'danger'" size="small">
+            {{ quota.remaining }} / {{ quota.daily_limit }}
+          </el-tag>
+        </div>
+      </template>
       <div v-if="cooldownDisplay > 0" class="quota-item cooldown">
         <span>冷却中：</span>
         <el-tag type="warning" size="small">{{ cooldownDisplay }}s</el-tag>
@@ -40,7 +45,7 @@
         <li>EP号：ep259707 或 259707</li>
         <li>链接：https://www.bilibili.com/bangumi/play/ep259707</li>
       </ul>
-      <p class="limit-tip">每日限制 {{ quota.daily_limit }} 次，每次间隔 2 分钟</p>
+      <p class="limit-tip">{{ quota.is_privileged ? '您已拥有无限下载特权（仍受 2 分钟冷却限制）' : `每日限制 ${quota.daily_limit} 次，每次间隔 2 分钟` }}</p>
     </div>
   </div>
 </template>

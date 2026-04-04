@@ -6,10 +6,37 @@
         <span class="logo">▶</span> B站视频下载平台
       </div>
       <div class="navbar-right">
+        <el-button type="text" @click="openHelp">说明</el-button>
+        <el-button type="text" @click="showSettingsDialog = true">设置</el-button>
         <span class="username">{{ authStore.user?.username }}</span>
         <el-button type="text" @click="handleLogout">退出登录</el-button>
       </div>
     </div>
+
+    <!-- 设置对话框 -->
+    <el-dialog v-model="showSettingsDialog" title="B站凭据设置" width="480px">
+      <el-form label-position="top">
+        <el-form-item label="BILI_SESSDATA">
+          <el-input
+            v-model="settingsForm.sessdata"
+            placeholder="请输入 BILI_SESSDATA"
+            type="textarea"
+            :rows="3"
+          />
+        </el-form-item>
+        <el-form-item label="BILI_JCT">
+          <el-input
+            v-model="settingsForm.jct"
+            placeholder="请输入 BILI_JCT"
+          />
+        </el-form-item>
+      </el-form>
+      <p class="settings-tip">提交后将更新后端凭据，您将获得番剧下载次数无限的特权，直到凭据被其他用户更新。</p>
+      <template #footer>
+        <el-button @click="showSettingsDialog = false">取消</el-button>
+        <el-button type="primary" :loading="settingsLoading" @click="handleUpdateCredentials">保存</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 主体内容 -->
     <div class="main-content">
@@ -50,6 +77,8 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useDownloadStore } from '../stores/download'
 import { initSocket, disconnectSocket } from '../utils/socket'
+import { ElMessage } from 'element-plus'
+import api from '../utils/api'
 import VideoDownload from '../components/VideoDownload.vue'
 import BangumiDownload from '../components/BangumiDownload.vue'
 import TaskProgress from '../components/TaskProgress.vue'
@@ -59,6 +88,11 @@ const router = useRouter()
 const authStore = useAuthStore()
 const downloadStore = useDownloadStore()
 const activeTab = ref('video')
+
+// 设置对话框
+const showSettingsDialog = ref(false)
+const settingsLoading = ref(false)
+const settingsForm = ref({ sessdata: '', jct: '' })
 
 onMounted(async () => {
   // 获取用户信息
@@ -79,6 +113,38 @@ function handleLogout() {
   authStore.logout()
   disconnectSocket()
   router.push('/login')
+}
+
+function openHelp() {
+  window.open('https://fallingnight.com', '_blank')
+}
+
+async function handleUpdateCredentials() {
+  const { sessdata, jct } = settingsForm.value
+  if (!sessdata.trim() || !jct.trim()) {
+    ElMessage.warning('SESSDATA 和 JCT 不能为空')
+    return
+  }
+  settingsLoading.value = true
+  try {
+    const res = await api.post('/api/download/settings/bili-credentials', {
+      sessdata: sessdata.trim(),
+      jct: jct.trim()
+    })
+    if (res.data.code === 0) {
+      ElMessage.success(res.data.message)
+      showSettingsDialog.value = false
+      settingsForm.value = { sessdata: '', jct: '' }
+      // 刷新配额状态
+      await downloadStore.fetchBangumiQuota()
+    } else {
+      ElMessage.error(res.data.message)
+    }
+  } catch (e) {
+    ElMessage.error(e.message || '更新失败')
+  } finally {
+    settingsLoading.value = false
+  }
 }
 </script>
 
@@ -167,5 +233,12 @@ function handleLogout() {
   .download-tabs {
     padding: 16px;
   }
+}
+
+.settings-tip {
+  font-size: 13px;
+  color: #999;
+  margin-top: 8px;
+  line-height: 1.6;
 }
 </style>

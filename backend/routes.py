@@ -17,6 +17,9 @@ from config import Config
 # 短效下载 token 存储：{token: (task_id, user_id, expire_timestamp)}
 _download_tokens: dict = {}
 
+# 提供凭据的特权用户 ID（无限番剧下载）
+_privileged_user_id: int | None = None
+
 logger = logging.getLogger(__name__)
 download_bp = Blueprint('download', __name__, url_prefix='/api/download')
 
@@ -89,11 +92,14 @@ def submit_bangumi_download():
         db.session.add(quota)
         db.session.commit()
 
+    # 特权用户仅跳过每日次数限制，不跳过冷却
+    is_privileged = (_privileged_user_id is not None and user_id == _privileged_user_id)
+
     # 检查每日上限
-    if quota.count >= Config.BANGUMI_DAILY_LIMIT:
+    if not is_privileged and quota.count >= Config.BANGUMI_DAILY_LIMIT:
         return jsonify(code=2, message='今日番剧下载次数已用完，请明天再试'), 429
 
-    # 检查冷却时间
+    # 检查冷却时间（特权用户同样受冷却限制）
     if quota.last_download_at:
         elapsed = (now_bjt().replace(tzinfo=None) - quota.last_download_at).total_seconds()
         if elapsed < Config.BANGUMI_COOLDOWN_SECONDS:
@@ -294,8 +300,38 @@ def bangumi_quota():
             if elapsed < Config.BANGUMI_COOLDOWN_SECONDS:
                 cooldown_remaining_seconds = int(Config.BANGUMI_COOLDOWN_SECONDS - elapsed)
 
+    is_privileged = (_privileged_user_id is not None and user_id == _privileged_user_id)
+
     return jsonify(code=0, message='success', data={
-        'remaining': remaining,
+        'remaining': -1 if is_privileged else remaining,
         'daily_limit': Config.BANGUMI_DAILY_LIMIT,
-        'cooldown_remaining_seconds': cooldown_remaining_seconds
+        'cooldown_remaining_seconds': cooldown_remaining_seconds,
+        'is_privileged': is_privileged
     })
+
+
+@download_bp.route('/settings/bili-credentials', methods=['POST'])
+@jwt_required()
+def update_bili_credentials():
+    """更新 B站凭据并授予特权"""
+    global _privileged_user_id
+    user_id = int(get_jwt_identity())
+    data = request.get_json()
+    if not data:
+        return jsonify(code=1, message='请求体不能为空'), 400
+
+    sessdata = data.get('sessdata', '').strip()
+    jct = data.get('jct', '').strip()
+
+    if not sessdata or not jct:
+        return jsonify(code=1, message='SESSDATA 和 JCT 不能为空'), 400
+
+    # 更新运行时配置
+    Config.BILI_SESSDATA = sessdata
+    Config.BILI_JCT = jct
+
+    # 授予该用户无限番剧下载特权
+    _privileged_user_id = user_id
+
+    logger.info(f'用户 {user_id} 更新了 B站凭据，获得无限番剧下载特权')
+    return jsonify(code=0, message='凭据已更新，您已获得无限番剧下载特权')

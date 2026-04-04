@@ -5,7 +5,7 @@ import api from '../utils/api'
 export const useDownloadStore = defineStore('download', () => {
   const tasks = ref([])
   const queueStatus = ref({ queue_length: 0, tasks: [] })
-  const bangumiQuota = ref({ remaining: 5, daily_limit: 5, cooldown_remaining_seconds: 0 })
+  const bangumiQuota = ref({ remaining: 5, daily_limit: 5, cooldown_remaining_seconds: 0, is_privileged: false })
 
   // 获取任务列表
   async function fetchTasks() {
