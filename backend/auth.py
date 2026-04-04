@@ -21,8 +21,8 @@ def register():
     # 参数校验
     if not username or not password:
         return jsonify(code=1, message='用户名和密码不能为空'), 400
-    if len(username) < 3 or len(username) > 20:
-        return jsonify(code=1, message='用户名长度需在3-20字符之间'), 400
+    if len(username) < 2 or len(username) > 20:
+        return jsonify(code=1, message='用户名长度需在2-20字符之间'), 400
     if len(password) < 6 or len(password) > 20:
         return jsonify(code=1, message='密码长度需在6-20字符之间'), 400
 

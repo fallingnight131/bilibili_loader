@@ -4,7 +4,7 @@
     <div class="input-row">
       <el-input
         v-model="input"
-        placeholder="输入 EP 号（如 ep259707 或 259707）或番剧链接"
+        placeholder="输入 EP 号（如 ep293024 或 293024）或番剧链接"
         size="large"
         clearable
         @keyup.enter="handleSubmit"
@@ -38,8 +38,8 @@
     <div class="tips">
       <p>支持格式：</p>
       <ul>
-        <li>EP号：ep259707 或 259707</li>
-        <li>链接：https://www.bilibili.com/bangumi/play/ep259707</li>
+        <li>EP号：ep293024 或 293024</li>
+        <li>链接：https://www.bilibili.com/bangumi/play/ep293024</li>
       </ul>
       <p class="limit-tip">{{ quota.is_privileged ? '您已拥有无限下载特权' : `每日限制 ${quota.daily_limit} 次` }}</p>
     </div>

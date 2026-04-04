@@ -4,7 +4,7 @@
     <div class="input-row">
       <el-input
         v-model="input"
-        placeholder="输入 BV 号（如 BV1c7wEzrEBm）或完整视频链接"
+        placeholder="输入 BV 号（如 BV1ct4y1n7t9）或完整视频链接"
         size="large"
         clearable
         @keyup.enter="handleSubmit"
@@ -21,8 +21,8 @@
     <div class="tips">
       <p>支持格式：</p>
       <ul>
-        <li>BV号：BV1c7wEzrEBm</li>
-        <li>链接：https://www.bilibili.com/video/BV1c7wEzrEBm</li>
+        <li>BV号：BV1ct4y1n7t9</li>
+        <li>链接：https://www.bilibili.com/video/BV1ct4y1n7t9</li>
       </ul>
     </div>
   </div>

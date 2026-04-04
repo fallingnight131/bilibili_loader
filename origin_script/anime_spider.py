@@ -7,7 +7,7 @@ import hashlib
 from urllib.parse import urlencode
 
 # ====================== 【只需修改这里】 ======================
-EP_ID    = 259707          # 示例：https://www.bilibili.com/bangumi/play/ep259707
+EP_ID    = 293024          # 示例：https://www.bilibili.com/bangumi/play/ep293024
 QUALITY  = 80              # 清晰度：80=1080P, 112=1080P+, 116=1080P60, 120=4K
 SAVE_DIR = "downloads"    # 保存目录
 
