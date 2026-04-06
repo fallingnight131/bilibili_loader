@@ -1,7 +1,14 @@
 <template>
   <div class="register-container">
+    <div class="register-navbar">
+      <div class="register-brand">
+        <span class="logo">▶</span> B站视频下载平台
+      </div>
+      <el-button type="text" class="help-button" @click="openHelp">说明</el-button>
+    </div>
+
     <div class="register-card">
-      <h2 class="register-title">注册账号</h2>
+      <h2 class="register-title">注册</h2>
       <el-form
         ref="formRef"
         :model="form"
@@ -112,15 +119,51 @@ async function handleRegister() {
     loading.value = false
   }
 }
+
+function openHelp() {
+  window.open('https://fallingnight.com', '_blank')
+}
 </script>
 
 <style scoped>
 .register-container {
+  position: relative;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  padding: 72px 16px 24px;
   background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ed 100%);
+}
+
+.register-navbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.register-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #FB7299;
+}
+
+.logo {
+  font-size: 20px;
+}
+
+.help-button {
+  color: #FB7299;
 }
 
 .register-card {
@@ -135,7 +178,7 @@ async function handleRegister() {
   text-align: center;
   margin-bottom: 32px;
   color: #FB7299;
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .register-footer {
@@ -152,5 +195,25 @@ async function handleRegister() {
 
 .register-footer a:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+  .register-container {
+    padding: 64px 12px 20px;
+  }
+
+  .register-navbar {
+    padding: 0 12px;
+  }
+
+  .register-brand {
+    font-size: 16px;
+  }
+
+  .register-card {
+    width: 100%;
+    max-width: 400px;
+    padding: 28px 20px;
+  }
 }
 </style>
