@@ -229,6 +229,23 @@ def _clear_cancelled(task_id):
         _cancelled_tasks.discard(task_id)
 
 
+def cleanup_stale_cancelled():
+    """清理已完结任务的残留取消标记（由 scheduler 定期调用）"""
+    with _cancelled_lock:
+        if not _cancelled_tasks:
+            return 0
+        stale = set(_cancelled_tasks)
+    # 在锁外查询数据库
+    removed = 0
+    for tid in stale:
+        task = DownloadTask.query.get(tid)
+        if not task or task.status in ('completed', 'failed', 'cancelled', 'expired'):
+            with _cancelled_lock:
+                _cancelled_tasks.discard(tid)
+            removed += 1
+    return removed
+
+
 # --------------- 任务分发 ---------------
 
 def get_queue_status():

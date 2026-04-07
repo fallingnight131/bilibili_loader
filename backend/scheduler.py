@@ -7,7 +7,8 @@ import time
 import random
 
 from models import db, DownloadTask, now_bjt
-from cookie_pool import validate_all_cookies
+from cookie_pool import validate_all_cookies, cleanup_stale_cancelled
+from routes import cleanup_expired_tokens
 from config import Config
 if Config.oss_enabled():
     from oss_uploader import delete_from_oss
@@ -25,45 +26,65 @@ def _next_cookie_check_interval():
 def start_scheduler(app, socketio):
     """启动后台守护线程"""
 
+    _cleanup_cycle = 0  # 计数器，用于控制低频清理任务
+
     def cleanup_loop():
+        nonlocal _cleanup_cycle
         logger.info('文件清理调度器已启动')
         while True:
             time.sleep(30)
             try:
                 with app.app_context():
                     now = now_bjt().replace(tzinfo=None)
-                    expired_tasks = DownloadTask.query.filter(
-                        DownloadTask.status == 'completed',
-                        DownloadTask.expires_at < now
-                    ).all()
+                    BATCH_SIZE = 50
+                    total_cleaned = 0
 
-                    for task in expired_tasks:
-                        # 清理 OSS 文件
-                        if task.oss_key and Config.oss_enabled():
-                            delete_from_oss(task.oss_key)
-                            task.oss_key = None
+                    while True:
+                        expired_tasks = DownloadTask.query.filter(
+                            DownloadTask.status == 'completed',
+                            DownloadTask.expires_at < now
+                        ).limit(BATCH_SIZE).all()
 
-                        # 清理本地文件
-                        if task.file_path and os.path.exists(task.file_path):
-                            try:
-                                os.remove(task.file_path)
-                                logger.info(f'已清理过期文件: {task.file_path}')
-                            except OSError as e:
-                                logger.error(f'删除文件失败: {task.file_path}, 错误: {e}')
+                        if not expired_tasks:
+                            break
 
-                        task.status = 'expired'
-                        db.session.commit()
+                        for task in expired_tasks:
+                            # 清理 OSS 文件
+                            if task.oss_key and Config.oss_enabled():
+                                delete_from_oss(task.oss_key)
+                                task.oss_key = None
 
-                        room = f'user_{task.user_id}'
-                        socketio.emit('task_progress', {
-                            'task_id': task.id,
-                            'progress': task.progress,
-                            'status': 'expired',
-                            'message': '文件已过期'
-                        }, room=room)
+                            # 清理本地文件
+                            if task.file_path and os.path.exists(task.file_path):
+                                try:
+                                    os.remove(task.file_path)
+                                    logger.info(f'已清理过期文件: {task.file_path}')
+                                except OSError as e:
+                                    logger.error(f'删除文件失败: {task.file_path}, 错误: {e}')
 
-                    if expired_tasks:
-                        logger.info(f'本次清理了 {len(expired_tasks)} 个过期任务')
+                            task.status = 'expired'
+                            db.session.commit()
+
+                            room = f'user_{task.user_id}'
+                            socketio.emit('task_progress', {
+                                'task_id': task.id,
+                                'progress': task.progress,
+                                'status': 'expired',
+                                'message': '文件已过期'
+                            }, room=room)
+
+                        total_cleaned += len(expired_tasks)
+
+                    if total_cleaned:
+                        logger.info(f'本次清理了 {total_cleaned} 个过期任务')
+
+                    # 每 10 轮（约 5 分钟）清理残留的取消标记
+                    _cleanup_cycle += 1
+                    if _cleanup_cycle % 10 == 0:
+                        removed = cleanup_stale_cancelled()
+                        if removed:
+                            logger.info(f'清理了 {removed} 个残留取消标记')
+                        cleanup_expired_tokens()
 
             except Exception as e:
                 logger.error(f'清理调度器异常: {e}')

@@ -20,6 +20,17 @@ if Config.oss_enabled():
 _download_tokens: dict = {}
 
 logger = logging.getLogger(__name__)
+
+
+def cleanup_expired_tokens():
+    """清理过期的下载 token（由 scheduler 定期调用）"""
+    now = time.time()
+    expired = [t for t, v in _download_tokens.items() if v[2] < now]
+    for t in expired:
+        _download_tokens.pop(t, None)
+    return len(expired)
+
+
 download_bp = Blueprint('download', __name__, url_prefix='/api/download')
 
 COOKIE_SETTING_COOLDOWN_SECONDS = 120
@@ -233,14 +244,10 @@ def create_download_token(task_id):
         return jsonify(code=0, data={'oss_url': url})
 
     # 否则走原来的 token 逻辑
-    # 清理过期 token
-    now = time.time()
-    expired = [t for t, v in _download_tokens.items() if v[2] < now]
-    for t in expired:
-        _download_tokens.pop(t, None)
+    cleanup_expired_tokens()
 
     token = uuid.uuid4().hex
-    _download_tokens[token] = (task_id, user_id, now + 60)
+    _download_tokens[token] = (task_id, user_id, time.time() + 60)
     return jsonify(code=0, data={'token': token})
 
 
