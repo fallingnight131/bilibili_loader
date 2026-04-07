@@ -391,8 +391,9 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
                         def oss_progress(consumed_bytes, total_bytes):
                             if total_bytes:
                                 pct = 90 + int(consumed_bytes / total_bytes * 10)
-                                task.progress = min(pct, 99)
-                                db.session.commit()
+                                with _app.app_context():
+                                    task.progress = min(pct, 99)
+                                    db.session.commit()
                                 _socketio.emit('task_progress', {
                                     'task_id': task_id,
                                     'progress': task.progress,
