@@ -12,6 +12,24 @@ logger = logging.getLogger(__name__)
 _bucket = None
 
 
+def _normalize_endpoint(endpoint):
+    if not endpoint:
+        return ''
+    if endpoint.startswith('http://'):
+        return endpoint[len('http://'):]
+    if endpoint.startswith('https://'):
+        return endpoint[len('https://'):]
+    return endpoint
+
+
+def _derive_public_endpoint():
+    # 优先使用显式配置，其次将 -internal endpoint 退化为公网 endpoint
+    if Config.OSS_PUBLIC_ENDPOINT:
+        return _normalize_endpoint(Config.OSS_PUBLIC_ENDPOINT)
+    ep = _normalize_endpoint(Config.OSS_ENDPOINT)
+    return ep.replace('-internal.', '.')
+
+
 def _get_bucket():
     global _bucket
     if _bucket is None:
@@ -46,18 +64,20 @@ def generate_signed_url(oss_key, filename, expires=300):
         'response-content-disposition': f'attachment; filename="{quote(filename)}"'
     }
 
+    # 先生成签名 URL，再替换 host，避免上传和下载必须共用同一个 endpoint
+    url = bucket.sign_url('GET', oss_key, expires, params=params)
+
+    upload_host = f"{Config.OSS_BUCKET_NAME}.{_normalize_endpoint(Config.OSS_ENDPOINT)}"
     if Config.OSS_CDN_DOMAIN:
-        # 使用 CDN 域名：生成 OSS 签名 URL 后替换域名
-        url = bucket.sign_url('GET', oss_key, expires, params=params)
-        # 替换 OSS endpoint 为 CDN 域名
-        oss_host = f'{Config.OSS_BUCKET_NAME}.{Config.OSS_ENDPOINT}'
-        cdn_domain = Config.OSS_CDN_DOMAIN
-        if not cdn_domain.startswith('http'):
-            cdn_domain = f'https://{cdn_domain}'
-        url = url.replace(f'https://{oss_host}', cdn_domain)
-        url = url.replace(f'http://{oss_host}', cdn_domain)
+        download_origin = Config.OSS_CDN_DOMAIN
+        if not download_origin.startswith('http'):
+            download_origin = f'https://{download_origin}'
     else:
-        url = bucket.sign_url('GET', oss_key, expires, params=params)
+        public_host = f"{Config.OSS_BUCKET_NAME}.{_derive_public_endpoint()}"
+        download_origin = f'https://{public_host}'
+
+    url = url.replace(f'https://{upload_host}', download_origin)
+    url = url.replace(f'http://{upload_host}', download_origin)
 
     return url
 

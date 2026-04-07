@@ -28,6 +28,24 @@ MIXIN_KEY_ENC_TAB = [
 
 def _build_headers(sessdata, bili_jct, user_agent=None):
     """构建请求头"""
+    sessdata = (sessdata or '').strip()
+    bili_jct = (bili_jct or '').strip()
+
+    # 兼容用户误贴整段 Cookie 的情况：SESSDATA=xxx; ...
+    if 'SESSDATA=' in sessdata:
+        sessdata = sessdata.split('SESSDATA=', 1)[1].split(';', 1)[0].strip()
+    if 'bili_jct=' in bili_jct:
+        bili_jct = bili_jct.split('bili_jct=', 1)[1].split(';', 1)[0].strip()
+
+    # requests 会按 latin-1 编码 Header，提前给出更明确的错误
+    try:
+        sessdata.encode('latin-1')
+        bili_jct.encode('latin-1')
+    except UnicodeEncodeError as e:
+        raise ValueError(
+            'Cookie 含非法字符（常见于中文逗号/空格或误贴整段文本），请重新复制 SESSDATA 与 bili_jct 原值'
+        ) from e
+
     return {
         "referer": "https://www.bilibili.com/",
         "user-agent": user_agent or ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -156,28 +174,31 @@ def validate_bili_cookie(sessdata, bili_jct, test_ep_id='293024'):
     2) 校验大会员状态
     3) 试探访问固定番剧 ep293024 的播放地址（只请求元信息，不下载文件）
     """
-    headers = _build_headers(sessdata, bili_jct)
-
-    # 校验登录态和会员状态
-    nav_url = "https://api.bilibili.com/x/web-interface/nav"
-    nav_res = requests.get(nav_url, headers=headers, timeout=10).json()
-    if nav_res.get('code') != 0:
-        return False, f"cookie 校验失败: {nav_res.get('message', '未知错误')}"
-
-    nav_data = nav_res.get('data', {})
-    if not nav_data.get('isLogin'):
-        return False, 'cookie 无效或已过期，请重新获取'
-    if int(nav_data.get('vipStatus', 0)) != 1:
-        return False, '该账号不是大会员，无法用于番剧下载'
-
-    # 试探抓取番剧资源（不做实际下载）
     try:
-        img_key, sub_key = get_wbi_keys(headers)
-        get_bangumi_dash_urls(test_ep_id, 80, img_key, sub_key, headers)
-    except Exception as e:
-        return False, f'无法访问测试番剧 ep{test_ep_id}: {e}'
+        headers = _build_headers(sessdata, bili_jct)
 
-    return True, 'ok'
+        # 校验登录态和会员状态
+        nav_url = "https://api.bilibili.com/x/web-interface/nav"
+        nav_res = requests.get(nav_url, headers=headers, timeout=10).json()
+        if nav_res.get('code') != 0:
+            return False, f"cookie 校验失败: {nav_res.get('message', '未知错误')}"
+
+        nav_data = nav_res.get('data', {})
+        if not nav_data.get('isLogin'):
+            return False, 'cookie 无效或已过期，请重新获取'
+        if int(nav_data.get('vipStatus', 0)) != 1:
+            return False, '该账号不是大会员，无法用于番剧下载'
+
+        # 试探抓取番剧资源（不做实际下载）
+        try:
+            img_key, sub_key = get_wbi_keys(headers)
+            get_bangumi_dash_urls(test_ep_id, 80, img_key, sub_key, headers)
+        except Exception as e:
+            return False, f'无法访问测试番剧 ep{test_ep_id}: {e}'
+
+        return True, 'ok'
+    except Exception as e:
+        return False, f'cookie 校验异常: {e}'
 
 
 def download_stream(url, filename, headers, progress_callback=None, cancel_check=None):
