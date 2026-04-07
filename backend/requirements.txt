@@ -7,3 +7,4 @@ requests
 gevent
 gevent-websocket
 python-dotenv
+oss2

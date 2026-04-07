@@ -37,6 +37,7 @@ class DownloadTask(db.Model):
     status = db.Column(db.String(20), default='pending')
     progress = db.Column(db.Integer, default=0)
     file_path = db.Column(db.String(500))
+    oss_key = db.Column(db.String(500))   # OSS 对象键（启用 OSS 时使用）
     file_size = db.Column(db.Integer)
     queue_position = db.Column(db.Integer)
     error_message = db.Column(db.String(500))

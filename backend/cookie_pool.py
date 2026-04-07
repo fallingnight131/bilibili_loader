@@ -15,6 +15,8 @@ from datetime import timedelta
 from models import db, CookieEntry, DownloadTask, BangumiQuota, now_bjt
 from downloader import download_video, download_bangumi, validate_bili_cookie, DownloadCancelled
 from config import Config
+if Config.oss_enabled():
+    from oss_uploader import upload_to_oss
 
 logger = logging.getLogger(__name__)
 
@@ -367,6 +369,17 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
                 task.file_path = file_path
                 task.file_size = file_size
                 task.expires_at = now_bjt() + timedelta(minutes=Config.FILE_EXPIRE_MINUTES)
+
+                # 上传到 OSS（如果已启用）
+                if Config.oss_enabled():
+                    try:
+                        oss_key = f'downloads/{task.id}/{os.path.basename(file_path)}'
+                        upload_to_oss(file_path, oss_key)
+                        task.oss_key = oss_key
+                        task.file_path = None  # 本地文件已删除
+                    except Exception as e:
+                        logger.error(f'OSS 上传失败，保留本地文件: {e}')
+
                 db.session.commit()
 
                 _socketio.emit('task_completed', {

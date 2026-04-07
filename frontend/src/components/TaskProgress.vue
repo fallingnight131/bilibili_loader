@@ -92,8 +92,15 @@ async function handleDownload() {
   downloading.value = true
   try {
     const res = await api.post(`/api/download/file-token/${props.task.id}`)
-    const token = res.data.data.token
-    window.location.href = `/api/download/file-by-token/${token}`
+    const data = res.data.data
+    if (data.oss_url) {
+      // OSS 签名 URL，直接跳转到 CDN/OSS 下载
+      window.open(data.oss_url, '_blank')
+    } else {
+      // 传统 token 下载
+      const token = data.token
+      window.location.href = `/api/download/file-by-token/${token}`
+    }
   } catch (e) {
     ElMessage.error(e.message || '获取下载链接失败')
   } finally {

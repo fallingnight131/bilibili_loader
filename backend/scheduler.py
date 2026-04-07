@@ -8,6 +8,9 @@ import random
 
 from models import db, DownloadTask, now_bjt
 from cookie_pool import validate_all_cookies
+from config import Config
+if Config.oss_enabled():
+    from oss_uploader import delete_from_oss
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,12 @@ def start_scheduler(app, socketio):
                     ).all()
 
                     for task in expired_tasks:
+                        # 清理 OSS 文件
+                        if task.oss_key and Config.oss_enabled():
+                            delete_from_oss(task.oss_key)
+                            task.oss_key = None
+
+                        # 清理本地文件
                         if task.file_path and os.path.exists(task.file_path):
                             try:
                                 os.remove(task.file_path)

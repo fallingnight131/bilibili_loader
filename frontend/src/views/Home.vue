@@ -67,7 +67,7 @@
       <div v-if="!isLoggedIn" class="guest-panel">
         <h2>欢迎使用 B站视频下载平台</h2>
         <p>当前状态：未登录。登录后可提交下载任务、查看队列与进度。</p>
-        <p>本平台的注册与登录需求仅为历史信息管理、服务器压力缓解和潜在攻击预防</p>
+        <p>本平台的注册与登录需求仅为流量限制、服务器压力缓解和潜在攻击预防</p>
         <p>平台承诺绝不将用户隐私信息用于其他目的</p>
         <el-button type="primary" size="large" @click="goLogin">去登录</el-button>
       </div>

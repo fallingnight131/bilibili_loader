@@ -25,3 +25,15 @@ class Config:
 
     # 番剧限制
     BANGUMI_DAILY_LIMIT = 5
+
+    # OSS 配置（可选，不填则走服务器直传）
+    OSS_ACCESS_KEY_ID = os.environ.get('OSS_ACCESS_KEY_ID', '')
+    OSS_ACCESS_KEY_SECRET = os.environ.get('OSS_ACCESS_KEY_SECRET', '')
+    OSS_ENDPOINT = os.environ.get('OSS_ENDPOINT', '')  # 如 oss-cn-hangzhou.aliyuncs.com
+    OSS_BUCKET_NAME = os.environ.get('OSS_BUCKET_NAME', '')
+    OSS_CDN_DOMAIN = os.environ.get('OSS_CDN_DOMAIN', '')  # 如 cdn.example.com，不填则用 OSS 直链
+
+    @classmethod
+    def oss_enabled(cls):
+        return all([cls.OSS_ACCESS_KEY_ID, cls.OSS_ACCESS_KEY_SECRET,
+                    cls.OSS_ENDPOINT, cls.OSS_BUCKET_NAME])

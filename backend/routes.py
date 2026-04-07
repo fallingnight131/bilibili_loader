@@ -13,6 +13,8 @@ from models import db, DownloadTask, BangumiQuota, CookieSettingCooldown, now_bj
 from downloader import parse_bvid, parse_ep_id, validate_bili_cookie
 from cookie_pool import submit_task, get_queue_status, add_cookie, pool_size, is_privileged, cancel_task
 from config import Config
+if Config.oss_enabled():
+    from oss_uploader import generate_signed_url
 
 # 短效下载 token 存储：{token: (task_id, user_id, expire_timestamp)}
 _download_tokens: dict = {}
@@ -209,7 +211,7 @@ def download_file(task_id):
 @download_bp.route('/file-token/<task_id>', methods=['POST'])
 @jwt_required()
 def create_download_token(task_id):
-    """为指定任务生成一个 60 秒有效的下载 token"""
+    """为指定任务生成一个 60 秒有效的下载 token，或直接返回 OSS 签名 URL"""
     user_id = int(get_jwt_identity())
     task = DownloadTask.query.get(task_id)
 
@@ -218,6 +220,19 @@ def create_download_token(task_id):
     if task.status != 'completed':
         return jsonify(code=1, message='任务尚未完成'), 400
 
+    # 检查是否过期
+    if task.expires_at and now_bjt().replace(tzinfo=None) > task.expires_at:
+        task.status = 'expired'
+        db.session.commit()
+        return jsonify(code=1, message='文件已过期'), 410
+
+    # 如果文件在 OSS 上，直接返回签名 URL
+    if task.oss_key and Config.oss_enabled():
+        filename = os.path.basename(task.oss_key)
+        url = generate_signed_url(task.oss_key, filename)
+        return jsonify(code=0, data={'oss_url': url})
+
+    # 否则走原来的 token 逻辑
     # 清理过期 token
     now = time.time()
     expired = [t for t, v in _download_tokens.items() if v[2] < now]
