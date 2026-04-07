@@ -41,11 +41,19 @@ def _get_bucket():
     return _bucket
 
 
-def upload_to_oss(local_path, oss_key):
-    """上传本地文件到 OSS，完成后删除本地文件"""
+def upload_to_oss(local_path, oss_key, progress_callback=None):
+    """上传本地文件到 OSS，完成后删除本地文件。
+
+    使用分片上传（resumable_upload），避免大文件阻塞 gevent 事件循环。
+    progress_callback(consumed_bytes, total_bytes) 可选的进度回调。
+    """
     bucket = _get_bucket()
     logger.info(f'开始上传到 OSS: {oss_key}')
-    bucket.put_object_from_file(oss_key, local_path)
+    oss2.resumable_upload(
+        bucket, oss_key, local_path,
+        progress_callback=progress_callback,
+        num_threads=1,
+    )
     logger.info(f'OSS 上传完成: {oss_key}')
     # 删除本地文件，释放服务器磁盘
     try:

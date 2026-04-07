@@ -113,6 +113,7 @@ const statusMap = {
   queued: `排队中（第${props.task.queue_position || '?'}位）`,
   downloading: '下载中',
   merging: '合并中',
+  uploading: '上传云存储中',
   completed: '已完成',
   failed: '已失败',
   cancelled: '已取消',
@@ -129,11 +130,11 @@ const statusText = computed(() => {
 const statusClass = computed(() => `status-text-${props.task.status}`)
 
 const showProgress = computed(() =>
-  ['downloading', 'merging', 'queued', 'pending'].includes(props.task.status)
+  ['downloading', 'merging', 'uploading', 'queued', 'pending'].includes(props.task.status)
 )
 
 const canCancel = computed(() =>
-  ['pending', 'queued', 'downloading', 'merging'].includes(props.task.status)
+  ['pending', 'queued', 'downloading', 'merging', 'uploading'].includes(props.task.status)
 )
 
 const progressStatus = computed(() => {

@@ -312,10 +312,15 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
         _remove_from_queue(task_id)
         _socketio.emit('queue_update', get_queue_status())
 
+        oss_enabled = Config.oss_enabled()
+
         def make_progress_callback(t):
             def progress_callback(progress, message):
+                if oss_enabled:
+                    # OSS 模式：下载+合并占 0-90%，上传占 90-100%
+                    progress = int(progress * 0.9)
                 t.progress = progress
-                if progress >= 90:
+                if progress >= (81 if oss_enabled else 90):
                     t.status = 'merging'
                 db.session.commit()
                 _socketio.emit('task_progress', {
@@ -364,22 +369,45 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
 
                 # 下载成功
                 task.title = title
-                task.status = 'completed'
-                task.progress = 100
                 task.file_path = file_path
                 task.file_size = file_size
                 task.expires_at = now_bjt() + timedelta(minutes=Config.FILE_EXPIRE_MINUTES)
 
                 # 上传到 OSS（如果已启用）
-                if Config.oss_enabled():
+                if oss_enabled:
                     try:
+                        task.status = 'uploading'
+                        task.progress = 90
+                        db.session.commit()
+                        _socketio.emit('task_progress', {
+                            'task_id': task_id,
+                            'progress': 90,
+                            'status': 'uploading',
+                            'message': '正在上传到云存储'
+                        }, room=room)
+
                         oss_key = f'downloads/{task.id}/{os.path.basename(file_path)}'
-                        upload_to_oss(file_path, oss_key)
+
+                        def oss_progress(consumed_bytes, total_bytes):
+                            if total_bytes:
+                                pct = 90 + int(consumed_bytes / total_bytes * 10)
+                                task.progress = min(pct, 99)
+                                db.session.commit()
+                                _socketio.emit('task_progress', {
+                                    'task_id': task_id,
+                                    'progress': task.progress,
+                                    'status': 'uploading',
+                                    'message': '正在上传到云存储'
+                                }, room=room)
+
+                        upload_to_oss(file_path, oss_key, progress_callback=oss_progress)
                         task.oss_key = oss_key
                         task.file_path = None  # 本地文件已删除
                     except Exception as e:
                         logger.error(f'OSS 上传失败，保留本地文件: {e}')
 
+                task.status = 'completed'
+                task.progress = 100
                 db.session.commit()
 
                 _socketio.emit('task_completed', {
