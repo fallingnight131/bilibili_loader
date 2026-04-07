@@ -317,10 +317,10 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
         def make_progress_callback(t):
             def progress_callback(progress, message):
                 if oss_enabled:
-                    # OSS 模式：下载+合并占 0-90%，上传占 90-100%
-                    progress = int(progress * 0.9)
+                    # OSS 模式：下载+合并占 0-60%，上传占 60-100%
+                    progress = int(progress * 0.6)
                 t.progress = progress
-                if progress >= (81 if oss_enabled else 90):
+                if progress >= (54 if oss_enabled else 90):
                     t.status = 'merging'
                 db.session.commit()
                 _socketio.emit('task_progress', {
@@ -371,17 +371,16 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
                 task.title = title
                 task.file_path = file_path
                 task.file_size = file_size
-                task.expires_at = now_bjt() + timedelta(minutes=Config.FILE_EXPIRE_MINUTES)
 
                 # 上传到 OSS（如果已启用）
                 if oss_enabled:
                     try:
                         task.status = 'uploading'
-                        task.progress = 90
+                        task.progress = 60
                         db.session.commit()
                         _socketio.emit('task_progress', {
                             'task_id': task_id,
-                            'progress': 90,
+                            'progress': 60,
                             'status': 'uploading',
                             'message': '正在上传到云存储'
                         }, room=room)
@@ -390,7 +389,7 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
 
                         def oss_progress(consumed_bytes, total_bytes):
                             if total_bytes:
-                                pct = 90 + int(consumed_bytes / total_bytes * 10)
+                                pct = 60 + int(consumed_bytes / total_bytes * 40)
                                 with _app.app_context():
                                     task.progress = min(pct, 99)
                                     db.session.commit()
@@ -407,6 +406,7 @@ def _process_task(task_id, primary_cookie_id, sessdata, bili_jct):
                     except Exception as e:
                         logger.error(f'OSS 上传失败，保留本地文件: {e}')
 
+                task.expires_at = now_bjt() + timedelta(minutes=Config.FILE_EXPIRE_MINUTES)
                 task.status = 'completed'
                 task.progress = 100
                 db.session.commit()

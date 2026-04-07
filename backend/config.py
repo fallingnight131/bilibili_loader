@@ -21,7 +21,7 @@ class Config:
     # 下载配置
     DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), 'downloads')
     DOWNLOAD_QUALITY = 80  # 默认 1080P
-    FILE_EXPIRE_MINUTES = 10  # 文件保留时间
+    FILE_EXPIRE_MINUTES = 30  # 文件保留时间
 
     # 番剧限制
     BANGUMI_DAILY_LIMIT = 5
